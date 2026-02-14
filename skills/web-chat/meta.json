@@ -1,0 +1,10 @@
+{
+  "name": "web-chat",
+  "displayName": "Web Chat",
+  "description": "WebSocket-based connector for the web chat UI",
+  "type": "connector",
+  "version": "0.1.0",
+  "generated": false,
+  "createdAt": "2026-02-14T00:00:00Z",
+  "enabled": true
+}

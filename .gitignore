@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.turbo/
+*.db
+*.db-journal
+*.db-wal
+*.tsbuildinfo
+.DS_Store
+data/
+.env
+.env.local
+mcp.json

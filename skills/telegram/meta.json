@@ -1,0 +1,11 @@
+{
+  "name": "telegram",
+  "displayName": "Telegram",
+  "description": "Telegram bot connector using grammY for receiving and sending messages",
+  "type": "connector",
+  "version": "0.1.0",
+  "generated": false,
+  "createdAt": "2026-02-14T00:00:00Z",
+  "envKeys": ["TELEGRAM_BOT_TOKEN"],
+  "enabled": true
+}

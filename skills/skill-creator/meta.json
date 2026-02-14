@@ -1,0 +1,10 @@
+{
+  "name": "skill-creator",
+  "displayName": "Skill Creator",
+  "description": "Meta-skill that allows the AI to create new skills at runtime",
+  "type": "tool",
+  "version": "0.1.0",
+  "generated": false,
+  "createdAt": "2026-02-14T00:00:00Z",
+  "enabled": true
+}

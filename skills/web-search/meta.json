@@ -1,0 +1,10 @@
+{
+  "name": "web-search",
+  "displayName": "Web Search",
+  "description": "Search the web for information using DuckDuckGo",
+  "type": "tool",
+  "version": "0.1.0",
+  "generated": false,
+  "createdAt": "2026-02-14T00:00:00Z",
+  "enabled": true
+}

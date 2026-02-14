@@ -1,0 +1,24 @@
+{
+  "name": "ai-assistant",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "skills/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "db:generate": "bun run --filter @ai-assistant/db generate",
+    "db:migrate": "bun run --filter @ai-assistant/db migrate"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.38.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  }
+}
