@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 
 export const channels = sqliteTable("channels", {
   id: text("id").primaryKey(),
@@ -53,6 +53,21 @@ export const skills = sqliteTable("skills", {
   generated: integer("generated", { mode: "boolean" }).notNull().default(false),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const requestLogs = sqliteTable("request_logs", {
+  id: text("id").primaryKey(),
+  platform: text("platform").notNull(),
+  channelId: text("channel_id").notNull(),
+  userId: text("user_id"),
+  userMessage: text("user_message").notNull(),
+  assistantReply: text("assistant_reply").notNull(),
+  costUsd: real("cost_usd"),
+  claudeSessionId: text("claude_session_id"),
+  durationMs: integer("duration_ms"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

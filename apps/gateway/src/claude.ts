@@ -14,6 +14,41 @@ export interface ClaudeResult {
   costUsd?: number;
 }
 
+const ALLOWED_TOOLS = [
+  "mcp__ai-assistant__*",
+  "Bash(*)",
+  "Read",
+  "Glob",
+  "Grep",
+  "WebSearch",
+  "WebFetch",
+  "Skill(*)",
+];
+
+const DISALLOWED_TOOLS = [
+  "Bash(rm -rf *)",
+  "Bash(rm -r *)",
+  "Bash(rm -fr *)",
+  "Bash(rmdir *)",
+  "Bash(git push --force*)",
+  "Bash(git push -f *)",
+  "Bash(git reset --hard*)",
+  "Bash(git clean -f*)",
+  "Bash(git clean -df*)",
+  "Bash(sudo *)",
+  "Bash(su *)",
+  "Bash(chmod 777 *)",
+  "Bash(chown *)",
+  "Bash(shutdown*)",
+  "Bash(reboot*)",
+  "Bash(killall *)",
+  "Bash(scp *)",
+  "Bash(rsync *)",
+  "Bash(ssh *)",
+  "Bash(npm publish*)",
+  "Bash(bun publish*)",
+];
+
 export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult> {
   const args = [
     "-p",
@@ -24,14 +59,9 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
     "--mcp-config",
     options.mcpConfigPath,
     "--allowedTools",
-    "mcp__ai-assistant__*",
-    "Bash(*)",
-    "Read",
-    "Glob",
-    "Grep",
-    "WebSearch",
-    "WebFetch",
-    "Skill(*)",
+    ...ALLOWED_TOOLS,
+    "--disallowedTools",
+    ...DISALLOWED_TOOLS,
   ];
 
   if (options.sessionId) {

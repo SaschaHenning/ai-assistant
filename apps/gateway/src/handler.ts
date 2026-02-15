@@ -3,7 +3,15 @@ import type { NormalizedMessage } from "@ai-assistant/core";
 import { eq, schema, type AppDatabase } from "@ai-assistant/db";
 import { invokeClaude, type ClaudeOptions } from "./claude";
 
-const SYSTEM_PROMPT = `You are a helpful personal AI assistant. You have access to various tools (skills) that you can use to help the user. Be concise and helpful. When you use tools, explain what you're doing briefly.`;
+const SYSTEM_PROMPT = `You are a helpful personal AI assistant. You have access to various tools (skills) that you can use to help the user. Be concise and helpful. When you use tools, explain what you're doing briefly.
+
+Safety rules:
+- Never run destructive commands (rm -rf, drop tables, etc.)
+- Never modify files outside the project directory
+- Never access credentials, tokens, or secrets directly
+- Never use sudo or run commands as root
+- Explain any risky or potentially destructive command before running it
+- Prefer read-only operations when possible`;
 
 interface HandleMessageOptions {
   message: NormalizedMessage;
@@ -14,7 +22,7 @@ interface HandleMessageOptions {
 
 export async function handleIncomingMessage(
   options: HandleMessageOptions
-): Promise<{ text: string; sessionId: string }> {
+): Promise<{ text: string; sessionId: string; costUsd?: number; durationMs: number }> {
   const { message, db, mcpConfigPath, onToken } = options;
 
   // Find or create channel
@@ -56,7 +64,7 @@ export async function handleIncomingMessage(
     where: eq(schema.sessions.channelId, channel.id),
   });
 
-  // Invoke Claude CLI
+  // Invoke Claude CLI with latency tracking
   const claudeOptions: ClaudeOptions = {
     prompt: message.text,
     systemPrompt: SYSTEM_PROMPT,
@@ -65,7 +73,9 @@ export async function handleIncomingMessage(
     onToken,
   };
 
+  const startTime = performance.now();
   const result = await invokeClaude(claudeOptions);
+  const durationMs = Math.round(performance.now() - startTime);
 
   // Save or update session
   if (existingSession) {
@@ -97,5 +107,19 @@ export async function handleIncomingMessage(
     createdAt: new Date(),
   });
 
-  return { text: result.text, sessionId: result.sessionId };
+  // Insert request log
+  await db.insert(schema.requestLogs).values({
+    id: randomUUID(),
+    platform: message.platform,
+    channelId: message.channelId,
+    userId: message.userId,
+    userMessage: message.text,
+    assistantReply: result.text,
+    costUsd: result.costUsd ?? null,
+    claudeSessionId: result.sessionId,
+    durationMs,
+    createdAt: new Date(),
+  });
+
+  return { text: result.text, sessionId: result.sessionId, costUsd: result.costUsd, durationMs };
 }
