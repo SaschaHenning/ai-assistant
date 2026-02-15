@@ -11,6 +11,7 @@ APP_DIR="$HOME/Applications/${APP_NAME}.app"
 CONFIG_DIR="$HOME/Library/Application Support/AI-Assistant"
 LAUNCH_AGENT="$HOME/Library/LaunchAgents/com.ai-assistant.tray.plist"
 WHISPER_MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin"
+VERSION_URL="https://raw.githubusercontent.com/SaschaHenning/ai-assistant/main/VERSION"
 
 # Production ports (dev uses 4300-4302)
 GATEWAY_PORT=4310
@@ -253,12 +254,17 @@ info "Writing config..."
 
 mkdir -p "$CONFIG_DIR"
 
+# Read version from downloaded project
+APP_VERSION="$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "0.0.0")"
+APP_VERSION="$(echo "$APP_VERSION" | tr -d '[:space:]')"
+
 cat > "$CONFIG_DIR/config.json" <<EOF
 {
     "projectRoot": "${INSTALL_DIR}",
     "bunPath": "${BUN_PATH}",
     "gatewayPort": ${GATEWAY_PORT},
-    "mcpPort": ${MCP_PORT}
+    "mcpPort": ${MCP_PORT},
+    "version": "${APP_VERSION}"
 }
 EOF
 

@@ -8,6 +8,7 @@ struct AppConfig: Codable {
     let bunPath: String
     let gatewayPort: Int
     let mcpPort: Int
+    var version: String?
 }
 
 func loadConfig() -> AppConfig? {
@@ -178,7 +179,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var toggleMenuItem: NSMenuItem!
     var webUIItem: NSMenuItem!
     var logsItem: NSMenuItem!
+    var updateItem: NSMenuItem!
+    var versionItem: NSMenuItem!
     var config: AppConfig?
+    var updateTimer: Timer?
+    var remoteVersion: String?
+
+    private let versionURL = "https://raw.githubusercontent.com/SaschaHenning/ai-assistant/main/VERSION"
+    private let installCommand = "curl -fsSL https://raw.githubusercontent.com/SaschaHenning/ai-assistant/main/tools/install.sh | bash"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         config = loadConfig()
@@ -192,6 +200,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         serverManager.onStatusChange = { [weak self] running in
             self?.updateMenu(running: running)
+        }
+
+        // Auto-start server if flagged (e.g. after an update where server was running)
+        let configDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AI-Assistant")
+        let autoStartFlag = configDir.appendingPathComponent(".autostart")
+        if FileManager.default.fileExists(atPath: autoStartFlag.path) {
+            try? FileManager.default.removeItem(at: autoStartFlag)
+            serverManager.start()
+        }
+
+        // Check for updates on launch and every 60 minutes
+        checkForUpdate()
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            self?.checkForUpdate()
         }
     }
 
@@ -220,11 +243,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        updateItem = NSMenuItem(title: "Update Available", action: #selector(runUpdate), keyEquivalent: "u")
+        updateItem.target = self
+        updateItem.isHidden = true
+        menu.addItem(updateItem)
+
         let configItem = NSMenuItem(title: "Edit Config", action: #selector(editConfig), keyEquivalent: ",")
         configItem.target = self
         menu.addItem(configItem)
 
         menu.addItem(NSMenuItem.separator())
+
+        let currentVersion = config?.version ?? "unknown"
+        versionItem = NSMenuItem(title: "v\(currentVersion)", action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
 
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
@@ -272,6 +305,72 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let textEditURL = URL(fileURLWithPath: "/System/Applications/TextEdit.app")
         let openConfig = NSWorkspace.OpenConfiguration()
         NSWorkspace.shared.open([fileURL], withApplicationAt: textEditURL, configuration: openConfig)
+    }
+
+    func checkForUpdate() {
+        guard let url = URL(string: versionURL) else { return }
+        let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            guard let self = self, error == nil,
+                  let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
+                  let data = data,
+                  let remote = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  remote.range(of: #"^\d+\.\d+\.\d+$"#, options: .regularExpression) != nil
+            else { return }
+            DispatchQueue.main.async {
+                self.remoteVersion = remote
+                let local = self.config?.version ?? "0.0.0"
+                if remote != local {
+                    self.updateItem.title = "Update Available (v\(remote))"
+                    self.updateItem.isHidden = false
+                } else {
+                    self.updateItem.isHidden = true
+                }
+            }
+        }
+        task.resume()
+    }
+
+    @objc func runUpdate() {
+        let wasRunning = serverManager.running
+        if wasRunning {
+            serverManager.stop()
+        }
+
+        // Write a temporary shell script to avoid escaping issues
+        let configDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AI-Assistant")
+        let autoStartFlag = configDir.appendingPathComponent(".autostart")
+
+        // If the server was running, write a flag so the app auto-starts the server after relaunch
+        if wasRunning {
+            try? "1".write(to: autoStartFlag, atomically: true, encoding: .utf8)
+        }
+
+        let tmpScript = NSTemporaryDirectory() + "ai-assistant-update.sh"
+        var scriptLines = "#!/usr/bin/env bash\nset -euo pipefail\n"
+        scriptLines += "\(installCommand)\n"
+        scriptLines += "echo ''\n"
+        scriptLines += "echo 'Done. You can close this window.'\n"
+
+        try? scriptLines.write(toFile: tmpScript, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tmpScript)
+
+        let appleScript = """
+        tell application "Terminal"
+            activate
+            do script "\(tmpScript)"
+        end tell
+        """
+
+        if let appleScriptObj = NSAppleScript(source: appleScript) {
+            var errorInfo: NSDictionary?
+            appleScriptObj.executeAndReturnError(&errorInfo)
+        }
+
+        // Quit so the installer can replace files
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            NSApplication.shared.terminate(nil)
+        }
     }
 
     @objc func quitApp() {
