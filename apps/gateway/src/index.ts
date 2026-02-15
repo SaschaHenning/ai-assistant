@@ -4,12 +4,14 @@ import { join, resolve } from "path";
 import type { NormalizedMessage } from "@ai-assistant/core";
 import { getDb, runMigrations } from "@ai-assistant/db";
 import { SkillRegistry, loadSkills, createMcpServer } from "@ai-assistant/skill-runtime";
-import { createSkillContext, registerMessageSender } from "./context";
+import { createSkillContext, registerMessageSender, messageSenders } from "./context";
 import { handleIncomingMessage } from "./handler";
 import { createChatRoutes } from "./routes/chat";
 import { createLogRoutes } from "./routes/logs";
 import { createMemoryRoutes } from "./routes/memory";
 import { createSkillRoutes } from "./routes/skills";
+import { createJobRoutes } from "./routes/jobs";
+import { JobScheduler } from "./scheduler";
 
 const GATEWAY_PORT = Number(process.env.GATEWAY_PORT) || 4300;
 const MCP_PORT = Number(process.env.MCP_PORT) || 4301;
@@ -87,6 +89,14 @@ async function main() {
     }
   });
 
+  // Initialize job scheduler
+  const scheduler = new JobScheduler({
+    db,
+    mcpConfigPath: MCP_CONFIG_PATH,
+    messageSenders,
+  });
+  await scheduler.start();
+
   // Create and start MCP server
   const mcp = createMcpServer(registry, context);
 
@@ -136,6 +146,7 @@ async function main() {
   app.route("/api/logs", createLogRoutes(db));
   app.route("/api/memory", createMemoryRoutes());
   app.route("/api/skills", createSkillRoutes(registry));
+  app.route("/api/jobs", createJobRoutes(db, scheduler));
 
   // Start gateway HTTP server
   const server = Bun.serve({
@@ -150,10 +161,12 @@ async function main() {
   console.log("  POST /api/chat");
   console.log("  GET  /api/logs");
   console.log("  GET  /api/skills");
+  console.log("  GET  /api/jobs");
 
   // Graceful shutdown
   process.on("SIGINT", async () => {
     console.log("\nShutting down...");
+    await scheduler.stop();
     await registry.stopAll();
     await mcp.close();
     server.stop();

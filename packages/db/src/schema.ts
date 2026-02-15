@@ -73,3 +73,24 @@ export const requestLogs = sqliteTable("request_logs", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+export const scheduledJobs = sqliteTable("scheduled_jobs", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  prompt: text("prompt").notNull(),
+  cronExpression: text("cron_expression").notNull(),
+  timezone: text("timezone").notNull().default("Europe/Berlin"),
+  platform: text("platform").notNull(), // telegram | web
+  channelId: text("channel_id").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastRunAt: integer("last_run_at", { mode: "timestamp" }),
+  lastRunStatus: text("last_run_status"), // success | error
+  lastRunError: text("last_run_error"),
+  nextRunAt: integer("next_run_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
