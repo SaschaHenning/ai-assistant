@@ -5,7 +5,7 @@ import { EventEmitter } from "events";
 const emitter = new EventEmitter();
 
 // Map of platform+channelId -> sendMessage function
-const messageSenders = new Map<string, (channelId: string, text: string) => Promise<void>>();
+export const messageSenders = new Map<string, (channelId: string, text: string) => Promise<void>>();
 
 export function registerMessageSender(
   platform: string,
