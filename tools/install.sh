@@ -12,8 +12,9 @@ CONFIG_DIR="$HOME/Library/Application Support/AI-Assistant"
 LAUNCH_AGENT="$HOME/Library/LaunchAgents/com.ai-assistant.tray.plist"
 WHISPER_MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin"
 
-GATEWAY_PORT=4300
-MCP_PORT=4301
+# Production ports (dev uses 4300-4302)
+GATEWAY_PORT=4310
+MCP_PORT=4311
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
 
@@ -29,39 +30,82 @@ ok()    { echo -e "${GREEN}[ok]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[warn]${NC}  $*"; }
 error() { echo -e "${RED}[error]${NC} $*"; exit 1; }
 
-# ─── Step 1: Check prerequisites ────────────────────────────────────────────
+# ─── Step 1: Check and install prerequisites ────────────────────────────────
 
 echo ""
 echo -e "${BOLD}🤖 AI Assistant Installer${NC}"
 echo "────────────────────────────────────────"
 echo ""
 
-MISSING=()
-
-check_cmd() {
-    if ! command -v "$1" &>/dev/null; then
-        MISSING+=("$1")
-        warn "$1 not found. Install: $2"
-    else
-        ok "$1 found: $(command -v "$1")"
-    fi
-}
-
 info "Checking prerequisites..."
 echo ""
 
-check_cmd "bun"    "curl -fsSL https://bun.sh/install | bash"
-check_cmd "swiftc" "xcode-select --install"
-check_cmd "git"    "xcode-select --install"
-check_cmd "ffmpeg" "brew install ffmpeg"
+# Xcode Command Line Tools (provides git + swiftc)
+if ! xcode-select -p &>/dev/null; then
+    info "Installing Xcode Command Line Tools (provides git, swiftc)..."
+    xcode-select --install
+    echo ""
+    echo -e "${YELLOW}  A system dialog should have appeared.${NC}"
+    echo -e "${YELLOW}  Complete the installation, then re-run this script.${NC}"
+    echo ""
+    exit 0
+else
+    ok "Xcode CLI tools installed"
+fi
 
-echo ""
+# Verify git
+if command -v git &>/dev/null; then
+    ok "git found: $(command -v git)"
+else
+    error "git not found even though Xcode CLI tools are installed. Run: xcode-select --install"
+fi
 
-if [ ${#MISSING[@]} -gt 0 ]; then
-    error "Missing prerequisites: ${MISSING[*]}. Install them and re-run this script."
+# Verify swiftc
+if command -v swiftc &>/dev/null; then
+    ok "swiftc found: $(command -v swiftc)"
+else
+    error "swiftc not found even though Xcode CLI tools are installed. Run: xcode-select --install"
+fi
+
+# Homebrew
+if ! command -v brew &>/dev/null; then
+    info "Installing Homebrew..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    # Add brew to PATH for this session (Apple Silicon vs Intel)
+    if [ -f "/opt/homebrew/bin/brew" ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -f "/usr/local/bin/brew" ]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+    ok "Homebrew installed"
+else
+    ok "Homebrew found: $(command -v brew)"
+fi
+
+# Bun
+if ! command -v bun &>/dev/null; then
+    info "Installing bun..."
+    curl -fsSL https://bun.sh/install | bash
+    # Source bun into current session
+    export BUN_INSTALL="$HOME/.bun"
+    export PATH="$BUN_INSTALL/bin:$PATH"
+    ok "bun installed"
+else
+    ok "bun found: $(command -v bun)"
+fi
+
+# ffmpeg
+if ! command -v ffmpeg &>/dev/null; then
+    info "Installing ffmpeg via Homebrew..."
+    brew install ffmpeg
+    ok "ffmpeg installed"
+else
+    ok "ffmpeg found: $(command -v ffmpeg)"
 fi
 
 BUN_PATH="$(command -v bun)"
+
+echo ""
 
 # ─── Step 2: Clone or update repo ───────────────────────────────────────────
 
@@ -99,7 +143,7 @@ MODEL_FILE="$MODEL_DIR/ggml-small.bin"
 if [ -f "$MODEL_FILE" ]; then
     ok "Whisper model already present"
 else
-    info "Downloading whisper model (ggml-small.bin)..."
+    info "Downloading whisper model (ggml-small.bin, ~466 MB)..."
     mkdir -p "$MODEL_DIR"
     curl -fSL --progress-bar "$WHISPER_MODEL_URL" -o "$MODEL_FILE"
     ok "Whisper model downloaded"
@@ -139,7 +183,7 @@ if [ "$SKIP_ENV" = false ]; then
 TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
 TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
 
-# Gateway
+# Gateway (production ports — dev uses 4300/4301)
 GATEWAY_PORT=${GATEWAY_PORT}
 MCP_PORT=${MCP_PORT}
 
@@ -272,5 +316,11 @@ echo "  Config: $CONFIG_DIR/config.json"
 echo "  Env:    $ENV_FILE"
 echo "  Repo:   $INSTALL_DIR"
 echo ""
+echo "  Gateway:  http://localhost:${GATEWAY_PORT}"
+echo "  Web UI:   http://localhost:$(( GATEWAY_PORT + 2 ))"
+echo ""
 echo "  Look for 🤖 in your menu bar."
+echo ""
+echo "  To uninstall:"
+echo "  curl -fsSL https://raw.githubusercontent.com/SaschaHenning/ai-assistant/main/tools/uninstall.sh | bash"
 echo ""

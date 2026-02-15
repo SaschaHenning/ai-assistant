@@ -8,28 +8,27 @@ Personal AI gateway that routes messages from Telegram and a web UI through Clau
 curl -fsSL https://raw.githubusercontent.com/SaschaHenning/ai-assistant/main/tools/install.sh | bash
 ```
 
-This clones the repo, installs dependencies, downloads the Whisper model, prompts for your Telegram credentials, compiles the menu bar app, and launches it. Look for **🤖** in your menu bar.
-
-### Prerequisites
-
-| Tool | Install |
-|---|---|
-| bun | `curl -fsSL https://bun.sh/install \| bash` |
-| swiftc | `xcode-select --install` |
-| git | `xcode-select --install` |
-| ffmpeg | `brew install ffmpeg` |
+This installs all prerequisites automatically (Xcode CLI tools, Homebrew, bun, ffmpeg), clones the repo, downloads the Whisper model, prompts for your Telegram credentials, compiles the menu bar app, and launches it. Look for **🤖** in your menu bar.
 
 ## Architecture
 
 ```
-apps/gateway/        → Hono HTTP server (port 4300) + MCP server (port 4301)
-apps/web/            → React 19 + Vite + Tailwind (port 4302)
+apps/gateway/        → Hono HTTP server + MCP server
+apps/web/            → React 19 + Vite + Tailwind
 packages/core/       → Shared types: Skill, NormalizedMessage, Platform
 packages/db/         → Drizzle ORM + SQLite
 packages/skill-runtime/ → Skill loader, registry, MCP bridge
 skills/              → Plugin directory (connectors + tools)
 tools/               → macOS menu bar app + installer
 ```
+
+### Ports
+
+| | Dev | Production (installed) |
+|---|---|---|
+| Gateway API | 4300 | 4310 |
+| MCP Server | 4301 | 4311 |
+| Web UI | 4302 | 4312 |
 
 ### Message Flow
 
@@ -54,8 +53,8 @@ After installation, the **🤖** menu bar icon provides:
 |---|---|
 | 🟢 Running / 🔴 Stopped | Server health status (polls every 2s) |
 | Start / Stop Server | Toggle the gateway process |
-| Open Web UI | Opens `localhost:4302` |
-| Open Logs | Opens `localhost:4302/logs` |
+| Open Web UI | Opens `localhost:4312` |
+| Open Logs | Opens `localhost:4312/logs` |
 | Edit Config | Opens `.env` in TextEdit |
 | Quit | Stops server and exits |
 
@@ -71,8 +70,7 @@ After installation, the **🤖** menu bar icon provides:
 ## Uninstall
 
 ```bash
-rm -rf ~/Applications/AI\ Assistant.app
-rm -rf ~/Library/Application\ Support/AI-Assistant
-rm -f ~/Library/LaunchAgents/com.ai-assistant.tray.plist
-rm -rf ~/.ai-assistant
+curl -fsSL https://raw.githubusercontent.com/SaschaHenning/ai-assistant/main/tools/uninstall.sh | bash
 ```
+
+Stops the app, removes the launch agent, app bundle, config, and optionally the repository.
