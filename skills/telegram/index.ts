@@ -205,6 +205,27 @@ function createSkill(): Skill {
             }
           },
         },
+        {
+          name: "send_chat_action",
+          description: "Send a chat action (e.g. typing indicator) to a Telegram chat",
+          inputSchema: z.object({
+            chatId: z.string().describe("The Telegram chat ID"),
+            action: z.string().describe("The action to send, e.g. 'typing'").default("typing"),
+          }),
+          execute: async (input) => {
+            if (!bot) {
+              return { content: "Telegram bot is not running" };
+            }
+
+            try {
+              await bot.api.sendChatAction(Number(input.chatId), input.action as any);
+              return { content: `Action '${input.action}' sent to chat ${input.chatId}` };
+            } catch (error) {
+              const msg = error instanceof Error ? error.message : String(error);
+              return { content: `Failed to send action: ${msg}` };
+            }
+          },
+        },
       ];
     },
 

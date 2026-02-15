@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ScheduleForm } from "../components/ScheduleForm";
 
 interface ScheduledJob {
@@ -22,9 +22,10 @@ export function SchedulesPage() {
   const [loading, setLoading] = useState(true);
   const [editingJob, setEditingJob] = useState<ScheduledJob | null>(null);
   const [creating, setCreating] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchJobs = async () => {
-    setLoading(true);
+  const fetchJobs = async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await fetch("/api/jobs");
       const data = await res.json();
@@ -36,12 +37,32 @@ export function SchedulesPage() {
     }
   };
 
-  useEffect(() => { fetchJobs(); }, []);
+  // Initial fetch
+  useEffect(() => { fetchJobs(true); }, []);
+
+  // Auto-poll every 5s when any job is running
+  useEffect(() => {
+    const hasRunning = jobs.some((j) => j.lastRunStatus === "running");
+
+    if (hasRunning && !pollRef.current) {
+      pollRef.current = setInterval(() => fetchJobs(), 5_000);
+    } else if (!hasRunning && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [jobs]);
 
   const deleteJob = async (id: string, name: string) => {
     if (!confirm(`Delete schedule "${name}"?`)) return;
     await fetch(`/api/jobs/${id}`, { method: "DELETE" });
-    await fetchJobs();
+    await fetchJobs(true);
   };
 
   const toggleEnabled = async (job: ScheduledJob) => {
@@ -50,14 +71,14 @@ export function SchedulesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: !job.enabled }),
     });
-    await fetchJobs();
+    await fetchJobs(true);
   };
 
   const runNow = async (id: string, name: string) => {
     if (!confirm(`Run "${name}" now?`)) return;
     try {
       await fetch(`/api/jobs/${id}/run`, { method: "POST" });
-      setTimeout(fetchJobs, 3000);
+      setTimeout(() => fetchJobs(), 1000);
     } catch (err) {
       console.error("Failed to run:", err);
     }
@@ -66,10 +87,11 @@ export function SchedulesPage() {
   const formatTime = (ts: string | number | null) => {
     if (!ts) return "\u2014";
     const d = new Date(typeof ts === "number" ? ts * 1000 : ts);
+    if (isNaN(d.getTime())) return "\u2014";
     return d.toLocaleString();
   };
 
-  const describeCron = (cron: string, tz: string): string => {
+  const describeCron = (cron: string): string => {
     const parts = cron.split(" ");
     if (parts.length !== 5) return cron;
     const [m, h, dom, mon, dow] = parts;
@@ -85,6 +107,29 @@ export function SchedulesPage() {
       return `${days[parseInt(dow)]} at ${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
     }
     return cron;
+  };
+
+  const getStatusBadge = (job: ScheduledJob) => {
+    if (job.lastRunStatus === "running") {
+      return (
+        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-400 border border-blue-800/50 flex items-center gap-1.5">
+          <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
+          Running...
+        </span>
+      );
+    }
+    if (job.enabled) {
+      return (
+        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-800/50">
+          Active
+        </span>
+      );
+    }
+    return (
+      <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-500 border border-gray-700">
+        Paused
+      </span>
+    );
   };
 
   return (
@@ -108,7 +153,7 @@ export function SchedulesPage() {
         {(creating || editingJob) && (
           <ScheduleForm
             job={editingJob}
-            onSave={() => { setCreating(false); setEditingJob(null); fetchJobs(); }}
+            onSave={() => { setCreating(false); setEditingJob(null); fetchJobs(true); }}
             onCancel={() => { setCreating(false); setEditingJob(null); }}
           />
         )}
@@ -127,33 +172,32 @@ export function SchedulesPage() {
               <div
                 key={job.id}
                 className={`bg-gray-800/50 border rounded-xl p-4 transition-colors ${
-                  job.enabled ? "border-gray-700" : "border-gray-800 opacity-60"
+                  job.lastRunStatus === "running"
+                    ? "border-blue-800/50"
+                    : job.enabled
+                    ? "border-gray-700"
+                    : "border-gray-800 opacity-60"
                 }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2.5 mb-1">
                       <h3 className="text-sm font-medium text-gray-200 truncate">{job.name}</h3>
-                      <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${
-                        job.enabled
-                          ? "bg-green-900/40 text-green-400 border border-green-800/50"
-                          : "bg-gray-800 text-gray-500 border border-gray-700"
-                      }`}>
-                        {job.enabled ? "Active" : "Paused"}
-                      </span>
+                      {getStatusBadge(job)}
                       <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
                         {job.platform === "telegram" ? "📱 Telegram" : "🌐 Web"}
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 mb-1.5">
-                      {describeCron(job.cronExpression, job.timezone)} · {job.timezone}
+                      {describeCron(job.cronExpression)} · {job.timezone}
                     </p>
                     <p className="text-xs text-gray-500 line-clamp-2">{job.prompt}</p>
                   </div>
 
                   <div className="flex gap-1 shrink-0">
                     <button onClick={() => runNow(job.id, job.name)}
-                      className="text-xs px-2.5 py-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded-md transition-colors"
+                      disabled={job.lastRunStatus === "running"}
+                      className="text-xs px-2.5 py-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       title="Run now">
                       ▶ Run
                     </button>

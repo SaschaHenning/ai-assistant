@@ -94,6 +94,14 @@ async function main() {
     db,
     mcpConfigPath: MCP_CONFIG_PATH,
     messageSenders,
+    sendTypingAction: async (platform, chatId) => {
+      if (platform !== "telegram") return;
+      const skill = registry.get("telegram");
+      if (!skill) return;
+      const tool = skill.getTools().find((t) => t.name === "send_chat_action");
+      if (!tool) return;
+      await tool.execute({ chatId, action: "typing" }, context);
+    },
   });
   await scheduler.start();
 
