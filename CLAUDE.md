@@ -85,3 +85,4 @@ Ports are also set in `.env` — that takes precedence over defaults in code.
 - **Claude CLI integration**: Spawned as subprocess with `--stream-json` output format. Allowed/disallowed tool lists in `claude.ts`.
 - **Skill validation**: AI-generated skills are validated against forbidden patterns (see `skill-runtime/validator.ts`).
 - **mcp.json**: Auto-generated at gateway startup, do not edit manually.
+- **Versioning**: The `VERSION` file in the repo root is the single source of truth. Every feature, bugfix, or behavioral change must bump the version — use minor (`1.1.0` → `1.2.0`) for features and fixes, major (`1.2.0` → `2.0.0`) for breaking changes. Update the `VERSION` file as part of the same commit.
