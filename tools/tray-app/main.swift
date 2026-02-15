@@ -18,10 +18,27 @@ func loadConfig() -> AppConfig? {
     return try? JSONDecoder().decode(AppConfig.self, from: data)
 }
 
+func loadEnv(projectRoot: String) -> [String: String] {
+    var env = ProcessInfo.processInfo.environment
+    let envFile = "\(projectRoot)/.env"
+    if let envContents = try? String(contentsOfFile: envFile, encoding: .utf8) {
+        for line in envContents.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            let parts = trimmed.split(separator: "=", maxSplits: 1)
+            if parts.count == 2 {
+                env[String(parts[0])] = String(parts[1])
+            }
+        }
+    }
+    return env
+}
+
 // MARK: - Server Manager
 
 class ServerManager {
-    private var process: Process?
+    private var gatewayProcess: Process?
+    private var webProcess: Process?
     private var isRunning = false
     var onStatusChange: ((Bool) -> Void)?
 
@@ -48,32 +65,34 @@ class ServerManager {
             return
         }
 
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: config.bunPath)
-        proc.arguments = ["run", "--watch", entrypoint]
-        proc.currentDirectoryURL = URL(fileURLWithPath: projectRoot)
+        let env = loadEnv(projectRoot: projectRoot)
+        let webPort = config.gatewayPort + 2
 
-        // Load .env into process environment
-        var env = ProcessInfo.processInfo.environment
-        let envFile = "\(projectRoot)/.env"
-        if let envContents = try? String(contentsOfFile: envFile, encoding: .utf8) {
-            for line in envContents.components(separatedBy: .newlines) {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
-                let parts = trimmed.split(separator: "=", maxSplits: 1)
-                if parts.count == 2 {
-                    env[String(parts[0])] = String(parts[1])
-                }
-            }
-        }
-        proc.environment = env
+        // Start gateway
+        let gw = Process()
+        gw.executableURL = URL(fileURLWithPath: config.bunPath)
+        gw.arguments = ["run", "--watch", entrypoint]
+        gw.currentDirectoryURL = URL(fileURLWithPath: projectRoot)
+        gw.environment = env
+        gw.standardOutput = FileHandle.nullDevice
+        gw.standardError = FileHandle.nullDevice
 
-        proc.standardOutput = FileHandle.nullDevice
-        proc.standardError = FileHandle.nullDevice
+        // Start web UI (vite dev server)
+        let web = Process()
+        web.executableURL = URL(fileURLWithPath: config.bunPath)
+        web.arguments = ["run", "--filter", "@ai-assistant/web", "dev", "--", "--port", String(webPort)]
+        web.currentDirectoryURL = URL(fileURLWithPath: projectRoot)
+        web.environment = env
+        web.standardOutput = FileHandle.nullDevice
+        web.standardError = FileHandle.nullDevice
 
         do {
-            try proc.run()
-            process = proc
+            try gw.run()
+            gatewayProcess = gw
+
+            try web.run()
+            webProcess = web
+
             isRunning = true
             onStatusChange?(true)
             startHealthPolling()
@@ -84,35 +103,33 @@ class ServerManager {
 
     func stop() {
         stopHealthPolling()
-        guard let proc = process, proc.isRunning else {
-            isRunning = false
-            onStatusChange?(false)
+        terminateProcess(&gatewayProcess)
+        terminateProcess(&webProcess)
+        isRunning = false
+        onStatusChange?(false)
+    }
+
+    private func terminateProcess(_ proc: inout Process?) {
+        guard let p = proc, p.isRunning else {
+            proc = nil
             return
         }
 
-        proc.terminate() // SIGTERM
+        p.terminate() // SIGTERM
 
+        let ref = p
         // SIGKILL after 5s if still running
-        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { [weak self] in
-            if proc.isRunning {
-                kill(proc.processIdentifier, SIGKILL)
-            }
-            DispatchQueue.main.async {
-                self?.process = nil
-                self?.isRunning = false
-                self?.onStatusChange?(false)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+            if ref.isRunning {
+                kill(ref.processIdentifier, SIGKILL)
             }
         }
 
-        // If it exits quickly
         DispatchQueue.global().async {
-            proc.waitUntilExit()
-            DispatchQueue.main.async { [weak self] in
-                self?.process = nil
-                self?.isRunning = false
-                self?.onStatusChange?(false)
-            }
+            ref.waitUntilExit()
         }
+
+        proc = nil
     }
 
     private func startHealthPolling() {
@@ -231,14 +248,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openWebUI() {
-        let port = config?.gatewayPort ?? 4300
-        // Web UI runs on port + 2 (4302 by default)
+        let port = config?.gatewayPort ?? 4310
         let webPort = port + 2
         NSWorkspace.shared.open(URL(string: "http://localhost:\(webPort)")!)
     }
 
     @objc func openLogs() {
-        let port = config?.gatewayPort ?? 4300
+        let port = config?.gatewayPort ?? 4310
         let webPort = port + 2
         NSWorkspace.shared.open(URL(string: "http://localhost:\(webPort)/logs")!)
     }
@@ -254,7 +270,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func quitApp() {
         serverManager.stop()
-        // Give the server a moment to shut down
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             NSApplication.shared.terminate(nil)
         }
