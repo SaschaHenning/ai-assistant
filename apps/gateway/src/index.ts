@@ -8,6 +8,7 @@ import { createSkillContext, registerMessageSender } from "./context";
 import { handleIncomingMessage } from "./handler";
 import { createChatRoutes } from "./routes/chat";
 import { createLogRoutes } from "./routes/logs";
+import { createMemoryRoutes } from "./routes/memory";
 import { createSkillRoutes } from "./routes/skills";
 
 const GATEWAY_PORT = Number(process.env.GATEWAY_PORT) || 3000;
@@ -133,6 +134,7 @@ async function main() {
   // Routes
   app.route("/api/chat", createChatRoutes(db, MCP_CONFIG_PATH));
   app.route("/api/logs", createLogRoutes(db));
+  app.route("/api/memory", createMemoryRoutes());
   app.route("/api/skills", createSkillRoutes(registry));
 
   // Start gateway HTTP server

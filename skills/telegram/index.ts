@@ -28,7 +28,7 @@ async function transcribeAudio(filePath: string): Promise<string> {
   await ffmpeg.exited;
 
   // Run whisper-cli
-  const whisper = spawn(["whisper-cli", "--model", WHISPER_MODEL, "--no-prints", "--no-timestamps", "--language", "auto", wavPath], {
+  const whisper = spawn(["whisper-cli", "--model", WHISPER_MODEL, "--no-prints", "--no-timestamps", "--language", "de", wavPath], {
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -141,6 +141,9 @@ function createSkill(): Skill {
           }
 
           context.log.info(`Voice transcription: ${transcript.slice(0, 100)}...`);
+
+          // Send transcription confirmation before processing
+          await bot!.api.sendMessage(chatId, `🎤 Ich habe erkannt: "${transcript}"`);
 
           const msg: NormalizedMessage = {
             id: String(ctx.message.message_id),

@@ -3,6 +3,7 @@ import { Routes, Route, Link, useLocation } from "react-router-dom";
 import { ChatWindow } from "./components/ChatWindow";
 import { SkillPanel } from "./components/SkillPanel";
 import { LogsPage } from "./pages/LogsPage";
+import { MemoryPage } from "./pages/MemoryPage";
 
 export default function App() {
   const [skillPanelOpen, setSkillPanelOpen] = useState(false);
@@ -35,6 +36,16 @@ export default function App() {
             >
               Logs
             </Link>
+            <Link
+              to="/memory"
+              className={`text-sm px-3 py-1 rounded-md transition-colors ${
+                location.pathname === "/memory"
+                  ? "bg-gray-700 text-gray-100"
+                  : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+              }`}
+            >
+              Memory
+            </Link>
           </nav>
         </div>
         <button
@@ -50,6 +61,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<ChatWindow />} />
           <Route path="/logs" element={<LogsPage />} />
+          <Route path="/memory" element={<MemoryPage />} />
         </Routes>
       </div>
 
