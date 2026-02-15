@@ -4,7 +4,7 @@ set -euo pipefail
 # ─── AI Assistant Installer ──────────────────────────────────────────────────
 # Usage: curl -fsSL https://raw.githubusercontent.com/SaschaHenning/ai-assistant/main/tools/install.sh | bash
 
-REPO_URL="https://github.com/SaschaHenning/ai-assistant.git"
+REPO_TARBALL="https://github.com/SaschaHenning/ai-assistant/archive/refs/heads/main.tar.gz"
 INSTALL_DIR="$HOME/.ai-assistant"
 APP_NAME="AI Assistant"
 APP_DIR="$HOME/Applications/${APP_NAME}.app"
@@ -40,9 +40,9 @@ echo ""
 info "Checking prerequisites..."
 echo ""
 
-# Xcode Command Line Tools (provides git + swiftc)
+# Xcode Command Line Tools (provides swiftc)
 if ! xcode-select -p &>/dev/null; then
-    info "Installing Xcode Command Line Tools (provides git, swiftc)..."
+    info "Installing Xcode Command Line Tools (provides swiftc)..."
     xcode-select --install
     echo ""
     echo -e "${YELLOW}  A system dialog should have appeared.${NC}"
@@ -51,13 +51,6 @@ if ! xcode-select -p &>/dev/null; then
     exit 0
 else
     ok "Xcode CLI tools installed"
-fi
-
-# Verify git
-if command -v git &>/dev/null; then
-    ok "git found: $(command -v git)"
-else
-    error "git not found even though Xcode CLI tools are installed. Run: xcode-select --install"
 fi
 
 # Verify swiftc
@@ -107,23 +100,27 @@ BUN_PATH="$(command -v bun)"
 
 echo ""
 
-# ─── Step 2: Clone or update repo ───────────────────────────────────────────
+# ─── Step 2: Download or update project ──────────────────────────────────────
 
-info "Setting up repository..."
+info "Downloading project files..."
 
-if [ -d "$INSTALL_DIR/.git" ]; then
-    info "Repository exists, pulling latest..."
-    git -C "$INSTALL_DIR" pull --ff-only || warn "git pull failed, continuing with existing version"
-    ok "Repository updated"
+TMPDIR_DL="$(mktemp -d)"
+curl -fsSL "$REPO_TARBALL" | tar -xz -C "$TMPDIR_DL"
+
+# GitHub tarballs extract to <repo>-<branch>/ directory
+EXTRACTED_DIR="$TMPDIR_DL/ai-assistant-main"
+
+if [ -d "$INSTALL_DIR" ]; then
+    # Preserve user data: .env, data/, node_modules/
+    info "Updating existing installation..."
+    rsync -a --exclude='.env' --exclude='data/' --exclude='node_modules/' "$EXTRACTED_DIR/" "$INSTALL_DIR/"
+    ok "Project updated (kept .env, data, node_modules)"
 else
-    if [ -d "$INSTALL_DIR" ]; then
-        warn "$INSTALL_DIR exists but is not a git repo, backing up..."
-        mv "$INSTALL_DIR" "${INSTALL_DIR}.bak.$(date +%s)"
-    fi
-    info "Cloning repository..."
-    git clone "$REPO_URL" "$INSTALL_DIR"
-    ok "Repository cloned to $INSTALL_DIR"
+    mv "$EXTRACTED_DIR" "$INSTALL_DIR"
+    ok "Project downloaded to $INSTALL_DIR"
 fi
+
+rm -rf "$TMPDIR_DL"
 
 echo ""
 

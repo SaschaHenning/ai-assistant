@@ -8,7 +8,7 @@ Personal AI gateway that routes messages from Telegram and a web UI through Clau
 curl -fsSL https://raw.githubusercontent.com/SaschaHenning/ai-assistant/main/tools/install.sh | bash
 ```
 
-This installs all prerequisites automatically (Xcode CLI tools, Homebrew, bun, ffmpeg), clones the repo, downloads the Whisper model, prompts for your Telegram credentials, compiles the menu bar app, and launches it. Look for **🤖** in your menu bar.
+This installs all prerequisites automatically (Xcode CLI tools, Homebrew, bun, ffmpeg), downloads the project, fetches the Whisper model, prompts for your Telegram credentials, compiles the menu bar app, and launches it. Look for **🤖** in your menu bar.
 
 ## Architecture
 
