@@ -176,6 +176,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var serverManager: ServerManager!
     var statusMenuItem: NSMenuItem!
     var toggleMenuItem: NSMenuItem!
+    var webUIItem: NSMenuItem!
+    var logsItem: NSMenuItem!
     var config: AppConfig?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -206,12 +208,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        let webUIItem = NSMenuItem(title: "Open Web UI", action: #selector(openWebUI), keyEquivalent: "w")
+        webUIItem = NSMenuItem(title: "Open Web UI", action: #selector(openWebUI), keyEquivalent: "w")
         webUIItem.target = self
+        webUIItem.isEnabled = false
         menu.addItem(webUIItem)
 
-        let logsItem = NSMenuItem(title: "Open Logs", action: #selector(openLogs), keyEquivalent: "l")
+        logsItem = NSMenuItem(title: "Open Logs", action: #selector(openLogs), keyEquivalent: "l")
         logsItem.target = self
+        logsItem.isEnabled = false
         menu.addItem(logsItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -237,6 +241,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             statusMenuItem.title = "\u{1F534} Stopped"
             toggleMenuItem.title = "Start Server"
         }
+        webUIItem.isEnabled = running
+        logsItem.isEnabled = running
     }
 
     @objc func toggleServer() {
