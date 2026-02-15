@@ -26,13 +26,31 @@ function createSkill(): Skill {
 
       bot = new Bot(token);
 
+      // Parse allowed user IDs from env (comma-separated)
+      const allowedUsersRaw = context.env("TELEGRAM_ALLOWED_USERS");
+      const allowedUsers = allowedUsersRaw
+        ? new Set(allowedUsersRaw.split(",").map((id) => id.trim()))
+        : null;
+
+      if (allowedUsers) {
+        context.log.info(`Telegram restricted to user IDs: ${[...allowedUsers].join(", ")}`);
+      }
+
       // Handle incoming text messages
       bot.on("message:text", async (ctx) => {
+        const userId = String(ctx.from.id);
+
+        // Reject unauthorized users
+        if (allowedUsers && !allowedUsers.has(userId)) {
+          await ctx.reply("Sorry, you are not authorized to use this bot.");
+          return;
+        }
+
         const msg: NormalizedMessage = {
           id: String(ctx.message.message_id),
           platform: "telegram",
           channelId: String(ctx.chat.id),
-          userId: String(ctx.from.id),
+          userId,
           userName: ctx.from.first_name,
           text: ctx.message.text,
           timestamp: new Date(ctx.message.date * 1000),
