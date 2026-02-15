@@ -1,5 +1,10 @@
 import { Bot } from "grammy";
 import { z } from "zod";
+import { spawn } from "bun";
+import { join, resolve } from "path";
+import { tmpdir } from "os";
+import { randomUUID } from "crypto";
+import { unlink } from "fs/promises";
 import type {
   Skill,
   SkillContext,
@@ -9,6 +14,33 @@ import type {
 } from "@ai-assistant/core";
 
 import meta from "./meta.json";
+
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
+const WHISPER_MODEL = join(PROJECT_ROOT, "data/models/ggml-small.bin");
+
+async function transcribeAudio(filePath: string): Promise<string> {
+  // Convert to 16kHz WAV (required by whisper-cpp)
+  const wavPath = filePath + ".wav";
+  const ffmpeg = spawn(["ffmpeg", "-y", "-i", filePath, "-ar", "16000", "-ac", "1", "-f", "wav", wavPath], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  await ffmpeg.exited;
+
+  // Run whisper-cli
+  const whisper = spawn(["whisper-cli", "--model", WHISPER_MODEL, "--no-prints", "--no-timestamps", "--language", "auto", wavPath], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  const output = await new Response(whisper.stdout).text();
+  await whisper.exited;
+
+  // Cleanup temp files
+  await unlink(wavPath).catch(() => {});
+
+  return output.trim();
+}
 
 function createSkill(): Skill {
   let bot: Bot | null = null;
@@ -70,6 +102,63 @@ function createSkill(): Skill {
             clearInterval(typingInterval);
             clearTimeout(typingTimeout);
           }
+        }
+      });
+
+      // Handle voice messages
+      bot.on("message:voice", async (ctx) => {
+        const userId = String(ctx.from.id);
+
+        if (allowedUsers && !allowedUsers.has(userId)) {
+          await ctx.reply("Sorry, you are not authorized to use this bot.");
+          return;
+        }
+
+        if (!messageHandler) return;
+
+        const chatId = ctx.chat.id;
+        await ctx.api.sendChatAction(chatId, "typing");
+        const typingInterval = setInterval(async () => {
+          try { await ctx.api.sendChatAction(chatId, "typing"); } catch {}
+        }, 4000);
+        const typingTimeout = setTimeout(() => clearInterval(typingInterval), 120_000);
+
+        try {
+          // Download voice file from Telegram
+          const file = await ctx.getFile();
+          const filePath = join(tmpdir(), `tg-voice-${randomUUID()}.ogg`);
+          const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+          const res = await fetch(url);
+          await Bun.write(filePath, await res.arrayBuffer());
+
+          // Transcribe
+          const transcript = await transcribeAudio(filePath);
+          await unlink(filePath).catch(() => {});
+
+          if (!transcript) {
+            await ctx.reply("Could not transcribe the voice message.");
+            return;
+          }
+
+          context.log.info(`Voice transcription: ${transcript.slice(0, 100)}...`);
+
+          const msg: NormalizedMessage = {
+            id: String(ctx.message.message_id),
+            platform: "telegram",
+            channelId: String(chatId),
+            userId,
+            userName: ctx.from.first_name,
+            text: transcript,
+            timestamp: new Date(ctx.message.date * 1000),
+          };
+
+          await messageHandler(msg);
+        } catch (err) {
+          context.log.error("Voice message error:", err);
+          await ctx.reply("Failed to process voice message.");
+        } finally {
+          clearInterval(typingInterval);
+          clearTimeout(typingTimeout);
         }
       });
 
