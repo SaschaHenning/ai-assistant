@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import DOMPurify from "dompurify";
 
 interface RequestLog {
   id: string;
@@ -145,12 +146,19 @@ export function LogsPage() {
                     <pre className="text-sm text-gray-200 whitespace-pre-wrap bg-gray-900 rounded p-3 max-h-60 overflow-y-auto">{log.userMessage}</pre>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Assistant Reply</p>
-                    <div className="text-sm bg-gray-900 rounded p-3 max-h-96 overflow-y-auto prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-pre:my-2 prose-code:text-blue-300 prose-pre:bg-gray-800 prose-pre:rounded-lg prose-a:text-blue-400">
-                      <Markdown remarkPlugins={[remarkGfm]}>
-                        {log.assistantReply}
-                      </Markdown>
-                    </div>
+                    <p className="text-xs text-gray-500 mb-1">Assistant Reply ({log.platform === "telegram" ? "HTML" : "Markdown"})</p>
+                    {log.platform === "telegram" ? (
+                      <div
+                        className="text-sm bg-gray-900 rounded p-3 max-h-96 overflow-y-auto text-gray-300 [&_b]:font-bold [&_i]:italic [&_code]:text-blue-300 [&_code]:bg-gray-800 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-gray-800 [&_pre]:rounded-lg [&_pre]:p-2 [&_pre]:my-2"
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(log.assistantReply) }}
+                      />
+                    ) : (
+                      <div className="text-sm bg-gray-900 rounded p-3 max-h-96 overflow-y-auto prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-pre:my-2 prose-code:text-blue-300 prose-pre:bg-gray-800 prose-pre:rounded-lg prose-a:text-blue-400">
+                        <Markdown remarkPlugins={[remarkGfm]}>
+                          {log.assistantReply}
+                        </Markdown>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
