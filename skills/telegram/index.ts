@@ -57,7 +57,19 @@ function createSkill(): Skill {
         };
 
         if (messageHandler) {
-          await messageHandler(msg);
+          // Repeat typing indicator every 4s until reply comes back (max 2min)
+          const chatId = ctx.chat.id;
+          await ctx.api.sendChatAction(chatId, "typing");
+          const typingInterval = setInterval(async () => {
+            try { await ctx.api.sendChatAction(chatId, "typing"); } catch {}
+          }, 4000);
+          const typingTimeout = setTimeout(() => clearInterval(typingInterval), 120_000);
+          try {
+            await messageHandler(msg);
+          } finally {
+            clearInterval(typingInterval);
+            clearTimeout(typingTimeout);
+          }
         }
       });
 
