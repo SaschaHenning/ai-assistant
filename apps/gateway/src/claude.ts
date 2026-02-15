@@ -12,6 +12,7 @@ export interface ClaudeResult {
   text: string;
   sessionId: string;
   costUsd?: number;
+  model?: string;
 }
 
 const ALLOWED_TOOLS = [
@@ -84,6 +85,7 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
   let fullText = "";
   let sessionId = "";
   let costUsd: number | undefined;
+  let model: string | undefined;
   // Track the last seen text length per assistant message to compute deltas.
   // Each assistant event has cumulative text within that turn, but a new
   // assistant turn (after tool calls) starts fresh.
@@ -113,6 +115,11 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
           sessionId = event.session_id || "";
         }
 
+        // Extract model from assistant messages
+        if (event.type === "assistant" && event.message?.model) {
+          model = event.message.model;
+        }
+
         // Extract text from assistant messages
         if (event.type === "assistant" && event.message?.content) {
           const msgId = event.message?.id || "";
@@ -139,6 +146,7 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
         if (event.type === "result") {
           sessionId = event.session_id || sessionId;
           costUsd = event.total_cost_usd;
+          model = event.model || model;
           if (event.result && !fullText) {
             fullText = String(event.result);
           }
@@ -156,6 +164,7 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
       if (event.type === "result") {
         sessionId = event.session_id || sessionId;
         costUsd = event.total_cost_usd;
+        model = event.model || model;
         if (event.result && !fullText) {
           fullText = String(event.result);
         }
@@ -167,5 +176,5 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
 
   await proc.exited;
 
-  return { text: fullText, sessionId, costUsd };
+  return { text: fullText, sessionId, costUsd, model };
 }

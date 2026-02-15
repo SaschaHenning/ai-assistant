@@ -66,6 +66,7 @@ export const requestLogs = sqliteTable("request_logs", {
   userMessage: text("user_message").notNull(),
   assistantReply: text("assistant_reply").notNull(),
   costUsd: real("cost_usd"),
+  model: text("model"),
   claudeSessionId: text("claude_session_id"),
   durationMs: integer("duration_ms"),
   createdAt: integer("created_at", { mode: "timestamp" })

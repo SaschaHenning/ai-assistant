@@ -42,7 +42,7 @@ interface HandleMessageOptions {
 
 export async function handleIncomingMessage(
   options: HandleMessageOptions
-): Promise<{ text: string; sessionId: string; costUsd?: number; durationMs: number }> {
+): Promise<{ text: string; sessionId: string; costUsd?: number; durationMs: number; model?: string }> {
   const { message, db, mcpConfigPath, onToken } = options;
 
   // Find or create channel
@@ -136,10 +136,11 @@ export async function handleIncomingMessage(
     userMessage: message.text,
     assistantReply: result.text,
     costUsd: result.costUsd ?? null,
+    model: result.model ?? null,
     claudeSessionId: result.sessionId,
     durationMs,
     createdAt: new Date(),
   });
 
-  return { text: result.text, sessionId: result.sessionId, costUsd: result.costUsd, durationMs };
+  return { text: result.text, sessionId: result.sessionId, costUsd: result.costUsd, durationMs, model: result.model };
 }

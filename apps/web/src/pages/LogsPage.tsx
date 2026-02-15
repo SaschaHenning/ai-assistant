@@ -12,6 +12,7 @@ interface RequestLog {
   assistantReply: string;
   costUsd: number | null;
   claudeSessionId: string | null;
+  model: string | null;
   durationMs: number | null;
   createdAt: string;
 }
@@ -83,7 +84,7 @@ export function LogsPage() {
                 <colgroup>
                   <col className="w-[140px]" />
                   <col className="w-[80px]" />
-                  <col className="w-[100px]" />
+                  <col className="w-[140px]" />
                   <col />
                   <col />
                   <col className="w-[80px]" />
@@ -93,7 +94,7 @@ export function LogsPage() {
                   <tr className="bg-gray-800/50 text-gray-400 text-left">
                     <th className="px-3 py-2 font-medium">Time</th>
                     <th className="px-3 py-2 font-medium">Platform</th>
-                    <th className="px-3 py-2 font-medium">User</th>
+                    <th className="px-3 py-2 font-medium">Model</th>
                     <th className="px-3 py-2 font-medium">Message</th>
                     <th className="px-3 py-2 font-medium">Reply</th>
                     <th className="px-3 py-2 font-medium text-right">Cost</th>
@@ -117,7 +118,7 @@ export function LogsPage() {
                           {log.platform}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-gray-400 truncate align-top">{log.userId || "-"}</td>
+                      <td className="px-3 py-2 text-gray-400 text-xs truncate align-top">{log.model?.replace("claude-", "") || "-"}</td>
                       <td className="px-3 py-2 text-gray-200 truncate align-top">{truncate(log.userMessage)}</td>
                       <td className="px-3 py-2 text-gray-400 truncate align-top">{truncate(log.assistantReply)}</td>
                       <td className="px-3 py-2 text-gray-300 text-right align-top">{formatCost(log.costUsd)}</td>
@@ -134,8 +135,9 @@ export function LogsPage() {
               if (!log) return null;
               return (
                 <div className="mt-2 rounded-lg border border-gray-800 bg-gray-800/20 p-4 space-y-4">
-                  <div className="flex gap-4 text-xs text-gray-500">
+                  <div className="flex flex-wrap gap-4 text-xs text-gray-500">
                     <span>Platform: {log.platform}</span>
+                    <span>Model: {log.model || "-"}</span>
                     <span>User: {log.userId || "-"}</span>
                     <span>Cost: {formatCost(log.costUsd)}</span>
                     <span>Duration: {formatDuration(log.durationMs)}</span>
