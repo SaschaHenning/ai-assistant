@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { eq, schema, type AppDatabase } from "@ai-assistant/db";
 import { invokeClaude } from "./claude";
 import { parseExpression } from "cron-parser";
@@ -7,6 +6,7 @@ interface SchedulerOptions {
   db: AppDatabase;
   mcpConfigPath: string;
   messageSenders: Map<string, (channelId: string, text: string) => Promise<void>>;
+  sendTypingAction?: (platform: string, chatId: string) => Promise<void>;
 }
 
 interface ScheduledJobRow {
@@ -20,17 +20,22 @@ interface ScheduledJobRow {
   enabled: boolean;
 }
 
+const TYPING_INTERVAL_MS = 4_000;
+const PROGRESS_INTERVAL_MS = 3 * 60 * 1_000; // 3 minutes
+
 export class JobScheduler {
   private timers = new Map<string, Timer>();
   private db: AppDatabase;
   private mcpConfigPath: string;
   private messageSenders: Map<string, (channelId: string, text: string) => Promise<void>>;
+  private sendTypingAction?: (platform: string, chatId: string) => Promise<void>;
   private running = false;
 
   constructor(options: SchedulerOptions) {
     this.db = options.db;
     this.mcpConfigPath = options.mcpConfigPath;
     this.messageSenders = options.messageSenders;
+    this.sendTypingAction = options.sendTypingAction;
   }
 
   async start() {
@@ -117,12 +122,58 @@ export class JobScheduler {
     }
   }
 
+  private async sendMessage(platform: string, channelId: string, text: string) {
+    const sender = this.messageSenders.get(platform);
+    if (sender) {
+      await sender(channelId, text);
+    }
+  }
+
   private async executeJob(job: ScheduledJobRow) {
     console.log(`[scheduler] Executing job: ${job.name} (${job.id})`);
 
     const startTime = Date.now();
     let status: "success" | "error" = "success";
     let errorMsg: string | null = null;
+
+    // Mark as running in DB
+    await this.db
+      .update(schema.scheduledJobs)
+      .set({ lastRunStatus: "running", updatedAt: new Date() })
+      .where(eq(schema.scheduledJobs.id, job.id));
+
+    // Send start notification
+    try {
+      await this.sendMessage(job.platform, job.channelId, `⏳ Job "<b>${job.name}</b>" gestartet...`);
+    } catch {
+      // Don't fail the job if notification fails
+    }
+
+    // Start typing indicator loop (Telegram only, every 4s)
+    let typingInterval: Timer | null = null;
+    if (this.sendTypingAction) {
+      try {
+        await this.sendTypingAction(job.platform, job.channelId);
+      } catch {}
+      typingInterval = setInterval(async () => {
+        try {
+          await this.sendTypingAction?.(job.platform, job.channelId);
+        } catch {}
+      }, TYPING_INTERVAL_MS);
+    }
+
+    // Start progress update timer (every 3 min)
+    let progressInterval: Timer | null = null;
+    progressInterval = setInterval(async () => {
+      const elapsed = Math.round((Date.now() - startTime) / 60_000);
+      try {
+        await this.sendMessage(
+          job.platform,
+          job.channelId,
+          `⏳ Job "<b>${job.name}</b>" läuft seit ${elapsed} Min...`
+        );
+      } catch {}
+    }, PROGRESS_INTERVAL_MS);
 
     try {
       const result = await invokeClaude({
@@ -131,12 +182,7 @@ export class JobScheduler {
         mcpConfigPath: this.mcpConfigPath,
       });
 
-      const sender = this.messageSenders.get(job.platform);
-      if (sender) {
-        await sender(job.channelId, result.text);
-      } else {
-        console.warn(`[scheduler] No sender for platform: ${job.platform}`);
-      }
+      await this.sendMessage(job.platform, job.channelId, result.text);
 
       console.log(`[scheduler] Job "${job.name}" completed in ${Date.now() - startTime}ms`);
     } catch (err) {
@@ -146,13 +192,18 @@ export class JobScheduler {
 
       // Notify user of failure
       try {
-        const sender = this.messageSenders.get(job.platform);
-        if (sender) {
-          await sender(job.channelId, `⚠️ Scheduled job "${job.name}" failed: ${errorMsg}`);
-        }
+        await this.sendMessage(
+          job.platform,
+          job.channelId,
+          `❌ Job "<b>${job.name}</b>" fehlgeschlagen:\n<code>${errorMsg}</code>`
+        );
       } catch {
         // Ignore notification errors
       }
+    } finally {
+      // Always clean up intervals
+      if (typingInterval) clearInterval(typingInterval);
+      if (progressInterval) clearInterval(progressInterval);
     }
 
     // Update last run info

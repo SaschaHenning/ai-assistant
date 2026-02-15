@@ -23,8 +23,8 @@ export function SchedulesPage() {
   const [editingJob, setEditingJob] = useState<ScheduledJob | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const fetchJobs = async () => {
-    setLoading(true);
+  const fetchJobs = async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await fetch("/api/jobs");
       const data = await res.json();
@@ -36,12 +36,27 @@ export function SchedulesPage() {
     }
   };
 
-  useEffect(() => { fetchJobs(); }, []);
+  // Initial fetch
+  useEffect(() => { fetchJobs(true); }, []);
+
+  // Auto-poll every 5s when any job is running
+  const hasRunningJobs = jobs.some((j) => j.lastRunStatus === "running");
+  useEffect(() => {
+    if (!hasRunningJobs) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/jobs");
+        const data = await res.json();
+        setJobs(data.jobs || []);
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [hasRunningJobs]);
 
   const deleteJob = async (id: string, name: string) => {
     if (!confirm(`Delete schedule "${name}"?`)) return;
     await fetch(`/api/jobs/${id}`, { method: "DELETE" });
-    await fetchJobs();
+    await fetchJobs(true);
   };
 
   const toggleEnabled = async (job: ScheduledJob) => {
@@ -50,14 +65,14 @@ export function SchedulesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: !job.enabled }),
     });
-    await fetchJobs();
+    await fetchJobs(true);
   };
 
   const runNow = async (id: string, name: string) => {
     if (!confirm(`Run "${name}" now?`)) return;
     try {
       await fetch(`/api/jobs/${id}/run`, { method: "POST" });
-      setTimeout(fetchJobs, 3000);
+      setTimeout(() => fetchJobs(), 1000);
     } catch (err) {
       console.error("Failed to run:", err);
     }
@@ -66,10 +81,11 @@ export function SchedulesPage() {
   const formatTime = (ts: string | number | null) => {
     if (!ts) return "\u2014";
     const d = new Date(typeof ts === "number" ? ts * 1000 : ts);
+    if (isNaN(d.getTime())) return "\u2014";
     return d.toLocaleString();
   };
 
-  const describeCron = (cron: string, tz: string): string => {
+  const describeCron = (cron: string): string => {
     const parts = cron.split(" ");
     if (parts.length !== 5) return cron;
     const [m, h, dom, mon, dow] = parts;
@@ -108,7 +124,7 @@ export function SchedulesPage() {
         {(creating || editingJob) && (
           <ScheduleForm
             job={editingJob}
-            onSave={() => { setCreating(false); setEditingJob(null); fetchJobs(); }}
+            onSave={() => { setCreating(false); setEditingJob(null); fetchJobs(true); }}
             onCancel={() => { setCreating(false); setEditingJob(null); }}
           />
         )}
@@ -127,7 +143,11 @@ export function SchedulesPage() {
               <div
                 key={job.id}
                 className={`bg-gray-800/50 border rounded-xl p-4 transition-colors ${
-                  job.enabled ? "border-gray-700" : "border-gray-800 opacity-60"
+                  job.lastRunStatus === "running"
+                    ? "border-blue-800/50"
+                    : job.enabled
+                    ? "border-gray-700"
+                    : "border-gray-800 opacity-60"
                 }`}
               >
                 <div className="flex items-start justify-between gap-4">
@@ -135,27 +155,39 @@ export function SchedulesPage() {
                     <div className="flex items-center gap-2.5 mb-1">
                       <h3 className="text-sm font-medium text-gray-200 truncate">{job.name}</h3>
                       <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${
-                        job.enabled
-                          ? "bg-green-900/40 text-green-400 border border-green-800/50"
-                          : "bg-gray-800 text-gray-500 border border-gray-700"
+                        job.lastRunStatus === "running"
+                          ? "bg-blue-900/40 text-blue-400 border border-blue-800/50"
+                          : job.enabled
+                            ? "bg-green-900/40 text-green-400 border border-green-800/50"
+                            : "bg-gray-800 text-gray-500 border border-gray-700"
                       }`}>
-                        {job.enabled ? "Active" : "Paused"}
+                        {job.lastRunStatus === "running" ? (
+                          <span className="flex items-center gap-1">
+                            <span className="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                            Running...
+                          </span>
+                        ) : job.enabled ? "Active" : "Paused"}
                       </span>
                       <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
                         {job.platform === "telegram" ? "📱 Telegram" : "🌐 Web"}
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 mb-1.5">
-                      {describeCron(job.cronExpression, job.timezone)} · {job.timezone}
+                      {describeCron(job.cronExpression)} · {job.timezone}
                     </p>
                     <p className="text-xs text-gray-500 line-clamp-2">{job.prompt}</p>
                   </div>
 
                   <div className="flex gap-1 shrink-0">
                     <button onClick={() => runNow(job.id, job.name)}
-                      className="text-xs px-2.5 py-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded-md transition-colors"
+                      disabled={job.lastRunStatus === "running"}
+                      className={`text-xs px-2.5 py-1.5 rounded-md transition-colors ${
+                        job.lastRunStatus === "running"
+                          ? "text-gray-600 cursor-not-allowed"
+                          : "text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
+                      }`}
                       title="Run now">
-                      ▶ Run
+                      {job.lastRunStatus === "running" ? "⏳" : "▶ Run"}
                     </button>
                     <button onClick={() => toggleEnabled(job)}
                       className="text-xs px-2.5 py-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded-md transition-colors">
@@ -177,6 +209,9 @@ export function SchedulesPage() {
                   {job.lastRunAt && (
                     <>
                       <span>Last: {formatTime(job.lastRunAt)}</span>
+                      {job.lastRunStatus === "running" && (
+                        <span className="text-blue-400">⏳ Running...</span>
+                      )}
                       {job.lastRunStatus === "success" && (
                         <span className="text-green-400">✓ Success</span>
                       )}
