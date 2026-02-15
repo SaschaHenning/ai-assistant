@@ -3,7 +3,7 @@ import type { NormalizedMessage } from "@ai-assistant/core";
 import { eq, schema, type AppDatabase } from "@ai-assistant/db";
 import { invokeClaude, type ClaudeOptions } from "./claude";
 
-const SYSTEM_PROMPT = `You are a helpful personal AI assistant. You have access to various tools (skills) that you can use to help the user. Be concise and helpful. When you use tools, explain what you're doing briefly.
+const BASE_SYSTEM_PROMPT = `You are a helpful personal AI assistant. You have access to various tools (skills) that you can use to help the user. Be concise and helpful. When you use tools, explain what you're doing briefly.
 
 Safety rules:
 - Never run destructive commands (rm -rf, drop tables, etc.)
@@ -12,6 +12,26 @@ Safety rules:
 - Never use sudo or run commands as root
 - Explain any risky or potentially destructive command before running it
 - Prefer read-only operations when possible`;
+
+const PLATFORM_FORMAT_INSTRUCTIONS: Record<string, string> = {
+  telegram: `
+Response formatting: You are responding on Telegram. Use Telegram HTML formatting:
+- <b>bold</b> for emphasis
+- <i>italic</i> for secondary emphasis
+- <code>inline code</code> for technical terms
+- <pre>code blocks</pre> for multi-line code
+- Do NOT use Markdown syntax (no **, no ##, no \`\`\`)
+- Keep responses concise, Telegram messages should be scannable
+- Use line breaks for readability, avoid long walls of text`,
+  web: `
+Response formatting: You are responding on a web interface that renders Markdown.
+Use standard Markdown: **bold**, *italic*, \`code\`, \`\`\`code blocks\`\`\`, ## headings, - lists.`,
+};
+
+function getSystemPrompt(platform: string): string {
+  const formatInstructions = PLATFORM_FORMAT_INSTRUCTIONS[platform] || PLATFORM_FORMAT_INSTRUCTIONS.web;
+  return BASE_SYSTEM_PROMPT + formatInstructions;
+}
 
 interface HandleMessageOptions {
   message: NormalizedMessage;
@@ -67,7 +87,7 @@ export async function handleIncomingMessage(
   // Invoke Claude CLI with latency tracking
   const claudeOptions: ClaudeOptions = {
     prompt: message.text,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: getSystemPrompt(message.platform),
     sessionId: existingSession?.claudeSessionId || undefined,
     mcpConfigPath,
     onToken,

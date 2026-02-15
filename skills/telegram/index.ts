@@ -196,7 +196,7 @@ function createSkill(): Skill {
 
             try {
               await bot.api.sendMessage(Number(input.chatId), input.text, {
-                parse_mode: "Markdown",
+                parse_mode: "HTML",
               });
               return { content: `Message sent to chat ${input.chatId}` };
             } catch (error) {
