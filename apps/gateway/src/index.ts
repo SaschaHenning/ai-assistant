@@ -11,8 +11,8 @@ import { createLogRoutes } from "./routes/logs";
 import { createMemoryRoutes } from "./routes/memory";
 import { createSkillRoutes } from "./routes/skills";
 
-const GATEWAY_PORT = Number(process.env.GATEWAY_PORT) || 3000;
-const MCP_PORT = Number(process.env.MCP_PORT) || 3001;
+const GATEWAY_PORT = Number(process.env.GATEWAY_PORT) || 4300;
+const MCP_PORT = Number(process.env.MCP_PORT) || 4301;
 const PROJECT_ROOT = resolve(import.meta.dir, "../../..");
 const SKILLS_DIR = join(PROJECT_ROOT, "skills");
 const MCP_CONFIG_PATH = join(PROJECT_ROOT, "mcp.json");
