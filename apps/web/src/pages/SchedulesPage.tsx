@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { ScheduleForm } from "../components/ScheduleForm";
 
 interface ScheduledJob {
@@ -22,7 +22,6 @@ export function SchedulesPage() {
   const [loading, setLoading] = useState(true);
   const [editingJob, setEditingJob] = useState<ScheduledJob | null>(null);
   const [creating, setCreating] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchJobs = async (showLoading = false) => {
     if (showLoading) setLoading(true);
@@ -41,23 +40,18 @@ export function SchedulesPage() {
   useEffect(() => { fetchJobs(true); }, []);
 
   // Auto-poll every 5s when any job is running
+  const hasRunningJobs = jobs.some((j) => j.lastRunStatus === "running");
   useEffect(() => {
-    const hasRunning = jobs.some((j) => j.lastRunStatus === "running");
-
-    if (hasRunning && !pollRef.current) {
-      pollRef.current = setInterval(() => fetchJobs(), 5_000);
-    } else if (!hasRunning && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, [jobs]);
+    if (!hasRunningJobs) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/jobs");
+        const data = await res.json();
+        setJobs(data.jobs || []);
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [hasRunningJobs]);
 
   const deleteJob = async (id: string, name: string) => {
     if (!confirm(`Delete schedule "${name}"?`)) return;
@@ -107,29 +101,6 @@ export function SchedulesPage() {
       return `${days[parseInt(dow)]} at ${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
     }
     return cron;
-  };
-
-  const getStatusBadge = (job: ScheduledJob) => {
-    if (job.lastRunStatus === "running") {
-      return (
-        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-400 border border-blue-800/50 flex items-center gap-1.5">
-          <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
-          Running...
-        </span>
-      );
-    }
-    if (job.enabled) {
-      return (
-        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-800/50">
-          Active
-        </span>
-      );
-    }
-    return (
-      <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-500 border border-gray-700">
-        Paused
-      </span>
-    );
   };
 
   return (
@@ -183,7 +154,20 @@ export function SchedulesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2.5 mb-1">
                       <h3 className="text-sm font-medium text-gray-200 truncate">{job.name}</h3>
-                      {getStatusBadge(job)}
+                      <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${
+                        job.lastRunStatus === "running"
+                          ? "bg-blue-900/40 text-blue-400 border border-blue-800/50"
+                          : job.enabled
+                            ? "bg-green-900/40 text-green-400 border border-green-800/50"
+                            : "bg-gray-800 text-gray-500 border border-gray-700"
+                      }`}>
+                        {job.lastRunStatus === "running" ? (
+                          <span className="flex items-center gap-1">
+                            <span className="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                            Running...
+                          </span>
+                        ) : job.enabled ? "Active" : "Paused"}
+                      </span>
                       <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
                         {job.platform === "telegram" ? "📱 Telegram" : "🌐 Web"}
                       </span>
@@ -197,9 +181,13 @@ export function SchedulesPage() {
                   <div className="flex gap-1 shrink-0">
                     <button onClick={() => runNow(job.id, job.name)}
                       disabled={job.lastRunStatus === "running"}
-                      className="text-xs px-2.5 py-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className={`text-xs px-2.5 py-1.5 rounded-md transition-colors ${
+                        job.lastRunStatus === "running"
+                          ? "text-gray-600 cursor-not-allowed"
+                          : "text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
+                      }`}
                       title="Run now">
-                      ▶ Run
+                      {job.lastRunStatus === "running" ? "⏳" : "▶ Run"}
                     </button>
                     <button onClick={() => toggleEnabled(job)}
                       className="text-xs px-2.5 py-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded-md transition-colors">
@@ -221,6 +209,9 @@ export function SchedulesPage() {
                   {job.lastRunAt && (
                     <>
                       <span>Last: {formatTime(job.lastRunAt)}</span>
+                      {job.lastRunStatus === "running" && (
+                        <span className="text-blue-400">⏳ Running...</span>
+                      )}
                       {job.lastRunStatus === "success" && (
                         <span className="text-green-400">✓ Success</span>
                       )}
