@@ -53,8 +53,7 @@ After installation, the **🤖** menu bar icon provides:
 |---|---|
 | 🟢 Running / 🔴 Stopped | Server health status (polls every 2s) |
 | Start / Stop Server | Toggle the gateway process |
-| Open Web UI | Opens `localhost:4312` |
-| Open Logs | Opens `localhost:4312/logs` |
+| Open Web UI | Opens `localhost:4312` (Chat, Requests, Memory, Schedules) |
 | Edit Config | Opens `.env` in TextEdit |
 | Quit | Stops server and exits |
 
@@ -66,6 +65,21 @@ After installation, the **🤖** menu bar icon provides:
 | App config | `~/Library/Application Support/AI-Assistant/config.json` |
 | Environment | `~/.ai-assistant/.env` |
 | Launch agent | `~/Library/LaunchAgents/com.ai-assistant.tray.plist` |
+
+## Telegram Bot Setup
+
+The installer prompts for a Telegram bot token and allowed user IDs. If you need to create a bot or find your user ID:
+
+1. **Create a bot** — Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`, and follow the prompts. You'll receive a token like `123456789:ABCdefGhIjKlMnOpQrStUvWxYz`.
+2. **Get your user ID** — Message [@userinfobot](https://t.me/userinfobot) on Telegram. It replies with your numeric user ID.
+3. **Configure** — Add both values to `~/.ai-assistant/.env`:
+   ```
+   TELEGRAM_BOT_TOKEN=your-token-here
+   TELEGRAM_ALLOWED_USERS=your-user-id
+   ```
+   Multiple user IDs can be comma-separated.
+
+For more details, see the [Telegram Bot API documentation](https://core.telegram.org/bots#how-do-i-create-a-bot).
 
 ## Uninstall
 
