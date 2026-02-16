@@ -61,8 +61,8 @@ async function main() {
   // Manage typing indicators via task queue lifecycle events
   const typingIntervals = new Map<string, Timer>();
 
-  taskQueue.on("task:started", ({ channelId }: { channelId: string }) => {
-    // Start typing indicator for Telegram channels
+  taskQueue.on("task:started", ({ task, channelId }: { task: { platform?: string }; channelId: string }) => {
+    if (task.platform === "web") return;
     const sendTyping = async () => {
       const skill = registry.get("telegram");
       if (!skill) return;
@@ -90,7 +90,9 @@ async function main() {
   taskQueue.on("task:cancelled", stopTyping);
 
   // Deliver results/errors back to the user via task queue events
-  taskQueue.on("task:completed", ({ task, channelId }: { task: { result?: string }; channelId: string }) => {
+  // Web tasks handle their own response via SSE, so skip them here
+  taskQueue.on("task:completed", ({ task, channelId }: { task: { result?: string; platform?: string }; channelId: string }) => {
+    if (task.platform === "web") return;
     if (task.result) {
       context.sendMessage(channelId, task.result).catch((err) =>
         console.error("Failed to send task result:", err)
@@ -98,14 +100,16 @@ async function main() {
     }
   });
 
-  taskQueue.on("task:failed", ({ task, channelId }: { task: { error?: string }; channelId: string }) => {
+  taskQueue.on("task:failed", ({ task, channelId }: { task: { error?: string; platform?: string }; channelId: string }) => {
+    if (task.platform === "web") return;
     const errorText = task.error || "Unknown error";
     context.sendMessage(channelId, `Sorry, something went wrong: ${errorText}`).catch((err) =>
       console.error("Failed to send error message:", err)
     );
   });
 
-  taskQueue.on("task:cancelled", ({ channelId }: { channelId: string }) => {
+  taskQueue.on("task:cancelled", ({ task, channelId }: { task: { platform?: string }; channelId: string }) => {
+    if (task.platform === "web") return;
     context.sendMessage(channelId, "Task was cancelled.").catch((err) =>
       console.error("Failed to send cancellation message:", err)
     );
@@ -115,15 +119,23 @@ async function main() {
   for (const connector of registry.getConnectors()) {
     if (connector.onMessage) {
       connector.onMessage(async (msg: NormalizedMessage) => {
-        taskQueue.enqueue(msg.channelId, async (signal) => {
-          const result = await handleIncomingMessage({
-            message: msg,
-            db,
-            mcpConfigPath: MCP_CONFIG_PATH,
-            signal,
-          });
-          return result.text;
-        });
+        taskQueue.enqueue(
+          msg.channelId,
+          async (signal) => {
+            const result = await handleIncomingMessage({
+              message: msg,
+              db,
+              mcpConfigPath: MCP_CONFIG_PATH,
+              signal,
+            });
+            return result.text;
+          },
+          {
+            messagePreview: msg.text.slice(0, 200),
+            platform: msg.platform,
+            userName: msg.userName,
+          }
+        );
       });
     }
   }
@@ -201,7 +213,7 @@ async function main() {
   app.get("/health", (c) => c.json({ status: "ok", skills: registry.getAll().length }));
 
   // Routes
-  app.route("/api/chat", createChatRoutes(db, MCP_CONFIG_PATH));
+  app.route("/api/chat", createChatRoutes(db, MCP_CONFIG_PATH, taskQueue));
   app.route("/api/logs", createLogRoutes(db));
   app.route("/api/memory", createMemoryRoutes());
   app.route("/api/skills", createSkillRoutes(registry));
@@ -224,8 +236,8 @@ async function main() {
   console.log("  GET  /api/jobs");
   console.log("  GET  /api/tasks");
 
-  // Graceful shutdown
-  process.on("SIGINT", async () => {
+  // Graceful shutdown — handle both SIGINT (Ctrl+C) and SIGTERM (turbo/process manager)
+  const shutdown = async () => {
     console.log("\nShutting down...");
     taskQueue.destroy();
     await scheduler.stop();
@@ -234,7 +246,9 @@ async function main() {
     server.stop();
     mcpServer.stop();
     process.exit(0);
-  });
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 main().catch((err) => {

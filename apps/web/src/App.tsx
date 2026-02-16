@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import { ChatWindow } from "./components/ChatWindow";
 import { SkillPanel } from "./components/SkillPanel";
-import { LogsPage } from "./pages/LogsPage";
+import { RequestsPage } from "./pages/RequestsPage";
 import { MemoryPage } from "./pages/MemoryPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
 
@@ -28,14 +28,14 @@ export default function App() {
               Chat
             </Link>
             <Link
-              to="/logs"
+              to="/requests"
               className={`text-sm px-3 py-1 rounded-md transition-colors ${
-                location.pathname === "/logs"
+                location.pathname === "/requests"
                   ? "bg-gray-700 text-gray-100"
                   : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
               }`}
             >
-              Logs
+              Requests
             </Link>
             <Link
               to="/memory"
@@ -69,9 +69,12 @@ export default function App() {
 
       {/* Main content with top padding for header */}
       <div className="pt-10 h-full">
+        {/* ChatWindow is always mounted to preserve state (messages, stream, channelId) across navigation */}
+        <div className={location.pathname === "/" ? "h-full" : "hidden"}>
+          <ChatWindow />
+        </div>
         <Routes>
-          <Route path="/" element={<ChatWindow />} />
-          <Route path="/logs" element={<LogsPage />} />
+          <Route path="/requests" element={<RequestsPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
         </Routes>

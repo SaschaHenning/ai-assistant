@@ -4,6 +4,23 @@ import type { TaskQueue } from "../task-queue";
 export function createTaskRoutes(taskQueue: TaskQueue) {
   const app = new Hono();
 
+  app.get("/", (c) => {
+    const includeRecent = c.req.query("includeRecent") === "true";
+    const tasks = taskQueue.getAllTasks(includeRecent).map((t) => ({
+      id: t.id,
+      channelId: t.channelId,
+      status: t.status,
+      error: t.error,
+      createdAt: t.createdAt,
+      startedAt: t.startedAt,
+      completedAt: t.completedAt,
+      messagePreview: t.messagePreview,
+      platform: t.platform,
+      userName: t.userName,
+    }));
+    return c.json({ tasks });
+  });
+
   app.get("/channel/:channelId", (c) => {
     const channelId = c.req.param("channelId");
     const active = taskQueue.getActiveTask(channelId);

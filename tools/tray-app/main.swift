@@ -178,7 +178,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusMenuItem: NSMenuItem!
     var toggleMenuItem: NSMenuItem!
     var webUIItem: NSMenuItem!
-    var logsItem: NSMenuItem!
     var updateItem: NSMenuItem!
     var versionItem: NSMenuItem!
     var config: AppConfig?
@@ -236,11 +235,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         webUIItem.isEnabled = false
         menu.addItem(webUIItem)
 
-        logsItem = NSMenuItem(title: "Open Logs", action: #selector(openLogs), keyEquivalent: "l")
-        logsItem.target = self
-        logsItem.isEnabled = false
-        menu.addItem(logsItem)
-
         menu.addItem(NSMenuItem.separator())
 
         updateItem = NSMenuItem(title: "Update Available", action: #selector(runUpdate), keyEquivalent: "u")
@@ -275,7 +269,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             toggleMenuItem.title = "Start Server"
         }
         webUIItem.isEnabled = running
-        logsItem.isEnabled = running
     }
 
     @objc func toggleServer() {
@@ -290,12 +283,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let port = config?.gatewayPort ?? 4310
         let webPort = port + 2
         NSWorkspace.shared.open(URL(string: "http://localhost:\(webPort)")!)
-    }
-
-    @objc func openLogs() {
-        let port = config?.gatewayPort ?? 4310
-        let webPort = port + 2
-        NSWorkspace.shared.open(URL(string: "http://localhost:\(webPort)/logs")!)
     }
 
     @objc func editConfig() {

@@ -19,8 +19,8 @@ export interface ClaudeResult {
 /** Kill the Claude process if no output is received for 5 minutes. */
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
 
-/** Kill the Claude process unconditionally after 30 minutes. */
-const HARD_TIMEOUT = 30 * 60 * 1000;
+/** Kill the Claude process unconditionally after 2 hours. */
+const HARD_TIMEOUT = 2 * 60 * 60 * 1000;
 
 const ALLOWED_TOOLS = [
   "mcp__ai-assistant__*",
@@ -58,6 +58,22 @@ const DISALLOWED_TOOLS = [
 ];
 
 export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult> {
+  const result = await runClaude(options);
+
+  // If resume failed (instant error with 0ms duration), retry without session
+  if (result.resumeFailed && options.sessionId) {
+    console.log("[claude] Resume failed for session", options.sessionId, "— retrying without session");
+    return runClaude({ ...options, sessionId: undefined });
+  }
+
+  return result;
+}
+
+interface InternalResult extends ClaudeResult {
+  resumeFailed?: boolean;
+}
+
+async function runClaude(options: ClaudeOptions): Promise<InternalResult> {
   const args = [
     "-p",
     options.prompt,
@@ -79,15 +95,28 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
     args.push("--system-prompt", options.systemPrompt);
   }
 
-  // Unset CLAUDECODE to allow running inside another Claude Code session
+  // Unset Claude Code internal env vars to allow running inside another Claude Code session
   const env = { ...process.env };
   delete env.CLAUDECODE;
+  delete env.CLAUDE_CODE_ENTRY_POINT;
 
   const proc = spawn(["claude", ...args], {
     stdout: "pipe",
     stderr: "pipe",
     env,
   });
+
+  // Collect stderr in parallel with stdout reading
+  const stderrChunks: string[] = [];
+  (async () => {
+    const r = proc.stderr.getReader();
+    const d = new TextDecoder();
+    while (true) {
+      const { done, value } = await r.read();
+      if (done) break;
+      stderrChunks.push(d.decode(value, { stream: true }));
+    }
+  })();
 
   // --- Watchdog timers & abort signal ---
   let inactivityTimer = setTimeout(() => {
@@ -109,6 +138,7 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
   let model: string | undefined;
   let lastMessageId = "";
   let lastSeenLength = 0;
+  let resumeFailed = false;
 
   const reader = proc.stdout.getReader();
   const decoder = new TextDecoder();
@@ -166,6 +196,12 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
           sessionId = event.session_id || sessionId;
           costUsd = event.total_cost_usd;
           model = event.model || model;
+
+          // Detect stale session resume failure: instant error with no API call
+          if (event.is_error && event.subtype === "error_during_execution" && event.duration_api_ms === 0 && options.sessionId) {
+            resumeFailed = true;
+          }
+
           if (event.result && !fullText) {
             fullText = String(event.result);
           }
@@ -184,6 +220,11 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
         sessionId = event.session_id || sessionId;
         costUsd = event.total_cost_usd;
         model = event.model || model;
+
+        if (event.is_error && event.subtype === "error_during_execution" && event.duration_api_ms === 0 && options.sessionId) {
+          resumeFailed = true;
+        }
+
         if (event.result && !fullText) {
           fullText = String(event.result);
         }
@@ -199,12 +240,19 @@ export async function invokeClaude(options: ClaudeOptions): Promise<ClaudeResult
   options.signal?.removeEventListener("abort", abortHandler);
 
   const exitCode = await proc.exited;
+  const stderrText = stderrChunks.join("");
 
   if (options.signal?.aborted) {
     throw new Error("Claude invocation was aborted");
   }
+
+  // If resume failed, return early so caller can retry without session
+  if (resumeFailed) {
+    return { text: "", sessionId: "", resumeFailed: true };
+  }
+
   if (exitCode !== 0 && !fullText) {
-    throw new Error(`Claude process exited with code ${exitCode}`);
+    throw new Error(`Claude process exited with code ${exitCode}: ${stderrText.slice(0, 500)}`);
   }
 
   return { text: fullText, sessionId, costUsd, model };

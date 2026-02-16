@@ -1,6 +1,12 @@
 import { EventEmitter } from "events";
 import { randomUUID } from "crypto";
 
+export interface TaskMetadata {
+  messagePreview?: string;
+  platform?: string;
+  userName?: string;
+}
+
 export interface Task {
   id: string;
   channelId: string;
@@ -11,6 +17,9 @@ export interface Task {
   startedAt?: Date;
   completedAt?: Date;
   abortController: AbortController;
+  messagePreview?: string;
+  platform?: string;
+  userName?: string;
 }
 
 type WorkFn = (signal: AbortSignal) => Promise<string>;
@@ -27,13 +36,16 @@ export class TaskQueue extends EventEmitter {
     this.cleanupTimer = setInterval(() => this.cleanup(), 10 * 60 * 1000);
   }
 
-  enqueue(channelId: string, work: WorkFn): Task {
+  enqueue(channelId: string, work: WorkFn, metadata?: TaskMetadata): Task {
     const task: Task = {
       id: randomUUID(),
       channelId,
       status: "queued",
       createdAt: new Date(),
       abortController: new AbortController(),
+      messagePreview: metadata?.messagePreview,
+      platform: metadata?.platform,
+      userName: metadata?.userName,
     };
 
     this.tasks.set(task.id, task);
@@ -60,6 +72,28 @@ export class TaskQueue extends EventEmitter {
 
   getQueuedCount(channelId: string): number {
     return this.queues.get(channelId)?.length ?? 0;
+  }
+
+  getAllTasks(includeRecent = false): Task[] {
+    const now = Date.now();
+    const recentCutoff = now - 5 * 60 * 1000;
+    const tasks: Task[] = [];
+
+    for (const task of this.tasks.values()) {
+      if (task.status === "running" || task.status === "queued") {
+        tasks.push(task);
+      } else if (
+        includeRecent &&
+        task.completedAt &&
+        task.completedAt.getTime() > recentCutoff
+      ) {
+        tasks.push(task);
+      }
+    }
+
+    return tasks.sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+    );
   }
 
   cancelTask(taskId: string): boolean {
