@@ -2,10 +2,9 @@ import { useState } from "react";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import { ChatWindow } from "./components/ChatWindow";
 import { SkillPanel } from "./components/SkillPanel";
-import { LogsPage } from "./pages/LogsPage";
+import { RequestsPage } from "./pages/RequestsPage";
 import { MemoryPage } from "./pages/MemoryPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
-import { ActivePage } from "./pages/ActivePage";
 
 export default function App() {
   const [skillPanelOpen, setSkillPanelOpen] = useState(false);
@@ -29,14 +28,14 @@ export default function App() {
               Chat
             </Link>
             <Link
-              to="/logs"
+              to="/requests"
               className={`text-sm px-3 py-1 rounded-md transition-colors ${
-                location.pathname === "/logs"
+                location.pathname === "/requests"
                   ? "bg-gray-700 text-gray-100"
                   : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
               }`}
             >
-              Logs
+              Requests
             </Link>
             <Link
               to="/memory"
@@ -47,16 +46,6 @@ export default function App() {
               }`}
             >
               Memory
-            </Link>
-            <Link
-              to="/active"
-              className={`text-sm px-3 py-1 rounded-md transition-colors ${
-                location.pathname === "/active"
-                  ? "bg-gray-700 text-gray-100"
-                  : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
-              }`}
-            >
-              Active
             </Link>
             <Link
               to="/schedules"
@@ -85,9 +74,8 @@ export default function App() {
           <ChatWindow />
         </div>
         <Routes>
-          <Route path="/logs" element={<LogsPage />} />
+          <Route path="/requests" element={<RequestsPage />} />
           <Route path="/memory" element={<MemoryPage />} />
-          <Route path="/active" element={<ActivePage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
         </Routes>
       </div>
