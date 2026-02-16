@@ -68,8 +68,7 @@ function createSkill(): Skill {
         context.log.info(`Telegram restricted to user IDs: ${[...allowedUsers].join(", ")}`);
       }
 
-      // Handle incoming text messages — fire-and-forget (non-blocking)
-      // Typing indicators are managed centrally by the task queue in index.ts
+      // Handle incoming text messages
       bot.on("message:text", async (ctx) => {
         const userId = String(ctx.from.id);
 
@@ -90,13 +89,14 @@ function createSkill(): Skill {
         };
 
         if (messageHandler) {
+          // Fire-and-forget: typing indicators are managed by the task queue
           messageHandler(msg).catch((err) =>
             context.log.error("Message handler error:", err)
           );
         }
       });
 
-      // Handle voice messages — fire-and-forget after transcription
+      // Handle voice messages
       bot.on("message:voice", async (ctx) => {
         const userId = String(ctx.from.id);
 
@@ -141,7 +141,7 @@ function createSkill(): Skill {
             timestamp: new Date(ctx.message.date * 1000),
           };
 
-          // Fire-and-forget — typing managed by task queue
+          // Fire-and-forget: typing indicators are managed by the task queue
           messageHandler(msg).catch((err) =>
             context.log.error("Voice handler error:", err)
           );
