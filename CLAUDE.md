@@ -107,6 +107,7 @@ Ports are also set in `.env` — that takes precedence over defaults in code.
 - **mcp.json**: Auto-generated at gateway startup, do not edit manually.
 - **Versioning**: Uses the `VERSION` file in the repo root as single source of truth.
 
+
 ## Output Files
 
 When creating files as task output (reports, exports, generated content, etc.):
