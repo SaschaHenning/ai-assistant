@@ -92,7 +92,7 @@ export async function handleIncomingMessage(
     sessionId: existingSession?.claudeSessionId || undefined,
     mcpConfigPath,
     onToken,
-    signal: options.signal,
+    signal,
   };
 
   const startTime = performance.now();

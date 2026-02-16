@@ -25,12 +25,12 @@ const PROGRESS_INTERVAL_MS = 3 * 60 * 1_000; // 3 minutes
 
 export class JobScheduler {
   private timers = new Map<string, Timer>();
-  private runningJobs = new Set<string>();
   private db: AppDatabase;
   private mcpConfigPath: string;
   private messageSenders: Map<string, (channelId: string, text: string) => Promise<void>>;
   private sendTypingAction?: (platform: string, chatId: string) => Promise<void>;
   private running = false;
+  private runningJobs = new Set<string>();
 
   constructor(options: SchedulerOptions) {
     this.db = options.db;
@@ -132,10 +132,9 @@ export class JobScheduler {
 
   private async executeJob(job: ScheduledJobRow) {
     if (this.runningJobs.has(job.id)) {
-      console.warn(`[scheduler] Job "${job.name}" already running, skipping`);
+      console.warn(`[scheduler] Job "${job.name}" is already running, skipping`);
       return;
     }
-
     this.runningJobs.add(job.id);
     console.log(`[scheduler] Executing job: ${job.name} (${job.id})`);
 
@@ -208,8 +207,7 @@ export class JobScheduler {
         // Ignore notification errors
       }
     } finally {
-      // Always clean up intervals and running guard
-      this.runningJobs.delete(job.id);
+      // Always clean up intervals
       if (typingInterval) clearInterval(typingInterval);
       if (progressInterval) clearInterval(progressInterval);
     }
@@ -225,6 +223,8 @@ export class JobScheduler {
       })
       .where(eq(schema.scheduledJobs.id, job.id));
 
+    this.runningJobs.delete(job.id);
+
     // Reschedule for next run
     const refreshedJob = await this.db.query.scheduledJobs.findFirst({
       where: eq(schema.scheduledJobs.id, job.id),
@@ -235,7 +235,6 @@ export class JobScheduler {
     }
   }
 
-  /** Run a job immediately. Returns immediately (fire-and-forget). */
   async runNow(jobId: string) {
     const job = await this.db.query.scheduledJobs.findFirst({
       where: eq(schema.scheduledJobs.id, jobId),
@@ -249,9 +248,9 @@ export class JobScheduler {
       throw new Error(`Job "${job.name}" is already running`);
     }
 
-    // Fire and forget — don't await
-    this.executeJob(job).catch((err) => {
-      console.error(`[scheduler] runNow error for job "${job.name}":`, err);
-    });
+    // Fire and forget — do not await
+    this.executeJob(job).catch((err) =>
+      console.error(`[scheduler] runNow error for "${job.name}":`, err)
+    );
   }
 }
