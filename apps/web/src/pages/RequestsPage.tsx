@@ -124,7 +124,7 @@ export function RequestsPage() {
   // --- Active tasks fetching ---
   const fetchTasks = async () => {
     try {
-      const res = await fetch("/api/tasks?includeRecent=true");
+      const res = await fetch("/api/tasks");
       const data = await res.json();
       const items: TaskItem[] = data.tasks || [];
       setTasks(items);
@@ -185,12 +185,6 @@ export function RequestsPage() {
   }, []);
 
   // --- Render ---
-  const activeTasks = tasks.filter(
-    (t) => t.status === "running" || t.status === "queued"
-  );
-  const recentTasks = tasks.filter(
-    (t) => t.status !== "running" && t.status !== "queued"
-  );
 
   // Sanitize HTML content from Telegram replies to prevent XSS
   const sanitize = (html: string) => DOMPurify.sanitize(html);
@@ -199,14 +193,11 @@ export function RequestsPage() {
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Active requests section */}
-        {(activeTasks.length > 0 || recentTasks.length > 0) && (
+        {tasks.length > 0 && (
           <section>
             <h2 className="text-lg font-semibold text-gray-200 mb-3">Active</h2>
-            {activeTasks.length === 0 && recentTasks.length > 0 ? (
-              <p className="text-sm text-gray-500 mb-3">No active requests. Showing recently completed.</p>
-            ) : null}
             <div className="space-y-3">
-              {[...activeTasks, ...recentTasks].map((task) => {
+              {tasks.map((task) => {
                 const cfg = statusConfig[task.status] || statusConfig.cancelled;
                 return (
                   <div
