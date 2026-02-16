@@ -1,6 +1,7 @@
 import { eq, schema, type AppDatabase } from "@ai-assistant/db";
 import { invokeClaude } from "./claude";
 import { parseExpression } from "cron-parser";
+import { getKnowledgeBlock } from "./knowledge";
 
 interface SchedulerOptions {
   db: AppDatabase;
@@ -184,7 +185,7 @@ export class JobScheduler {
     try {
       const result = await invokeClaude({
         prompt: job.prompt,
-        systemPrompt: `You are executing a scheduled task named "${job.name}". This task runs automatically on a schedule. Be concise and focused on the task. Deliver actionable results.`,
+        systemPrompt: `You are executing a scheduled task named "${job.name}". This task runs automatically on a schedule. Be concise and focused on the task. Deliver actionable results.` + await getKnowledgeBlock(this.db),
         mcpConfigPath: this.mcpConfigPath,
       });
 

@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type { NormalizedMessage } from "@ai-assistant/core";
 import { eq, schema, type AppDatabase } from "@ai-assistant/db";
 import { invokeClaude, type ClaudeOptions } from "./claude";
+import { getKnowledgeBlock } from "./knowledge";
 
 const BASE_SYSTEM_PROMPT = `You are a helpful personal AI assistant. You have access to various tools (skills) that you can use to help the user. Be concise and helpful. When you use tools, explain what you're doing briefly.
 
@@ -28,9 +29,10 @@ Response formatting: You are responding on a web interface that renders Markdown
 Use standard Markdown: **bold**, *italic*, \`code\`, \`\`\`code blocks\`\`\`, ## headings, - lists.`,
 };
 
-function getSystemPrompt(platform: string): string {
+async function getSystemPrompt(platform: string, db: AppDatabase): Promise<string> {
   const formatInstructions = PLATFORM_FORMAT_INSTRUCTIONS[platform] || PLATFORM_FORMAT_INSTRUCTIONS.web;
-  return BASE_SYSTEM_PROMPT + formatInstructions;
+  const knowledgeBlock = await getKnowledgeBlock(db);
+  return BASE_SYSTEM_PROMPT + knowledgeBlock + formatInstructions;
 }
 
 interface HandleMessageOptions {
@@ -88,7 +90,7 @@ export async function handleIncomingMessage(
   // Invoke Claude CLI with latency tracking
   const claudeOptions: ClaudeOptions = {
     prompt: message.text,
-    systemPrompt: getSystemPrompt(message.platform),
+    systemPrompt: await getSystemPrompt(message.platform, db),
     sessionId: existingSession?.claudeSessionId || undefined,
     mcpConfigPath,
     onToken,

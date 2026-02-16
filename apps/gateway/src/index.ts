@@ -8,7 +8,7 @@ import { createSkillContext, registerMessageSender, messageSenders } from "./con
 import { handleIncomingMessage } from "./handler";
 import { createChatRoutes } from "./routes/chat";
 import { createLogRoutes } from "./routes/logs";
-import { createMemoryRoutes } from "./routes/memory";
+import { createKnowledgeRoutes } from "./routes/knowledge";
 import { createSkillRoutes } from "./routes/skills";
 import { createJobRoutes } from "./routes/jobs";
 import { createTaskRoutes } from "./routes/tasks";
@@ -215,7 +215,7 @@ async function main() {
   // Routes
   app.route("/api/chat", createChatRoutes(db, MCP_CONFIG_PATH, taskQueue));
   app.route("/api/logs", createLogRoutes(db));
-  app.route("/api/memory", createMemoryRoutes());
+  app.route("/api/knowledge", createKnowledgeRoutes(db));
   app.route("/api/skills", createSkillRoutes(registry));
   app.route("/api/jobs", createJobRoutes(db, scheduler));
   app.route("/api/tasks", createTaskRoutes(taskQueue));
