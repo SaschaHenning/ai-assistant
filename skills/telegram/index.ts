@@ -89,7 +89,7 @@ function createSkill(): Skill {
         };
 
         if (messageHandler) {
-          // Fire-and-forget: typing indicators are managed by the task queue
+          // Fire-and-forget — task queue handles typing + response delivery
           messageHandler(msg).catch((err) =>
             context.log.error("Message handler error:", err)
           );
@@ -141,7 +141,7 @@ function createSkill(): Skill {
             timestamp: new Date(ctx.message.date * 1000),
           };
 
-          // Fire-and-forget: typing indicators are managed by the task queue
+          // Fire-and-forget — task queue handles typing + response delivery
           messageHandler(msg).catch((err) =>
             context.log.error("Voice handler error:", err)
           );

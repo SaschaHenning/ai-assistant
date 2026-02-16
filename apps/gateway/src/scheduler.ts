@@ -131,12 +131,12 @@ export class JobScheduler {
   }
 
   private async executeJob(job: ScheduledJobRow) {
-    console.log(`[scheduler] Executing job: ${job.name} (${job.id})`);
     if (this.runningJobs.has(job.id)) {
       console.warn(`[scheduler] Job "${job.name}" is already running, skipping`);
       return;
     }
     this.runningJobs.add(job.id);
+    console.log(`[scheduler] Executing job: ${job.name} (${job.id})`);
 
     const startTime = Date.now();
     let status: "success" | "error" = "success";
@@ -210,7 +210,6 @@ export class JobScheduler {
       // Always clean up intervals
       if (typingInterval) clearInterval(typingInterval);
       if (progressInterval) clearInterval(progressInterval);
-      this.runningJobs.delete(job.id);
     }
 
     // Update last run info
@@ -223,6 +222,8 @@ export class JobScheduler {
         updatedAt: new Date(),
       })
       .where(eq(schema.scheduledJobs.id, job.id));
+
+    this.runningJobs.delete(job.id);
 
     // Reschedule for next run
     const refreshedJob = await this.db.query.scheduledJobs.findFirst({
@@ -244,12 +245,12 @@ export class JobScheduler {
     }
 
     if (this.runningJobs.has(jobId)) {
-      throw new Error(`Job ${jobId} is already running`);
+      throw new Error(`Job "${job.name}" is already running`);
     }
 
-    // Fire and forget — don't await
-    this.executeJob(job).catch((err) => {
-      console.error(`[scheduler] runNow failed for job "${job.name}":`, err);
-    });
+    // Fire and forget — do not await
+    this.executeJob(job).catch((err) =>
+      console.error(`[scheduler] runNow error for "${job.name}":`, err)
+    );
   }
 }
