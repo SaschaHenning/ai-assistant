@@ -3,7 +3,7 @@ import { Routes, Route, Link, useLocation } from "react-router-dom";
 import { ChatWindow } from "./components/ChatWindow";
 import { SkillPanel } from "./components/SkillPanel";
 import { RequestsPage } from "./pages/RequestsPage";
-import { MemoryPage } from "./pages/MemoryPage";
+import { KnowledgePage } from "./pages/KnowledgePage";
 import { SchedulesPage } from "./pages/SchedulesPage";
 
 export default function App() {
@@ -38,14 +38,14 @@ export default function App() {
               Requests
             </Link>
             <Link
-              to="/memory"
+              to="/knowledge"
               className={`text-sm px-3 py-1 rounded-md transition-colors ${
-                location.pathname === "/memory"
+                location.pathname === "/knowledge"
                   ? "bg-gray-700 text-gray-100"
                   : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
               }`}
             >
-              Memory
+              Knowledge
             </Link>
             <Link
               to="/schedules"
@@ -75,7 +75,7 @@ export default function App() {
         </div>
         <Routes>
           <Route path="/requests" element={<RequestsPage />} />
-          <Route path="/memory" element={<MemoryPage />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
         </Routes>
       </div>
