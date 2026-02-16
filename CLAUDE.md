@@ -86,3 +86,9 @@ Ports are also set in `.env` — that takes precedence over defaults in code.
 - **Skill validation**: AI-generated skills are validated against forbidden patterns (see `skill-runtime/validator.ts`).
 - **mcp.json**: Auto-generated at gateway startup, do not edit manually.
 - **Versioning**: The `VERSION` file in the repo root is the single source of truth. Every feature, bugfix, or behavioral change must bump the version — use minor (`1.1.0` → `1.2.0`) for features and fixes, major (`1.2.0` → `2.0.0`) for breaking changes. Update the `VERSION` file as part of the same commit.
+
+## Workflow
+
+- **Pull requests**: Always use a feature branch and PR for new features and bug fixes — never commit directly to `main`.
+- **Before pushing**: Pull the latest changes from the remote branch and run `bun run build` to verify the build passes.
+- **Small commits**: Break work into small, focused commits. Split larger changes into smaller tasks — each commit should do one thing (e.g., separate schema changes from UI changes from business logic).
