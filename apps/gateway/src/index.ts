@@ -11,7 +11,9 @@ import { createLogRoutes } from "./routes/logs";
 import { createMemoryRoutes } from "./routes/memory";
 import { createSkillRoutes } from "./routes/skills";
 import { createJobRoutes } from "./routes/jobs";
+import { createTaskRoutes } from "./routes/tasks";
 import { JobScheduler } from "./scheduler";
+import { TaskQueue } from "./task-queue";
 
 const GATEWAY_PORT = Number(process.env.GATEWAY_PORT) || 4300;
 const MCP_PORT = Number(process.env.MCP_PORT) || 4301;
@@ -53,26 +55,76 @@ async function main() {
   // Start all skills
   await registry.startAll(context);
 
-  // Wire up connector message handlers - when a connector receives a message,
-  // invoke Claude via the handler and send the response back
+  // Create per-channel task queue for non-blocking message processing
+  const taskQueue = new TaskQueue();
+
+  // Typing indicator management per channel
+  const typingIntervals = new Map<string, Timer>();
+
+  function startTyping(channelId: string) {
+    if (typingIntervals.has(channelId)) return;
+    const sendTyping = async () => {
+      const skill = registry.get("telegram");
+      if (!skill) return;
+      const tool = skill.getTools().find((t) => t.name === "send_chat_action");
+      if (!tool) return;
+      try {
+        await tool.execute({ chatId: channelId, action: "typing" }, context);
+      } catch {}
+    };
+    sendTyping();
+    typingIntervals.set(channelId, setInterval(sendTyping, 4000));
+  }
+
+  function stopTyping(channelId: string) {
+    const interval = typingIntervals.get(channelId);
+    if (interval) {
+      clearInterval(interval);
+      typingIntervals.delete(channelId);
+    }
+  }
+
+  // Task queue event handlers — deliver results and manage typing
+  taskQueue.on("task:started", ({ channelId, task }) => {
+    console.log(`[task-queue] Task ${task.id} started on channel ${channelId}`);
+    startTyping(channelId);
+  });
+
+  taskQueue.on("task:completed", ({ channelId, task }) => {
+    console.log(`[task-queue] Task ${task.id} completed on channel ${channelId}`);
+    stopTyping(channelId);
+    if (task.result) {
+      context.sendMessage(channelId, task.result);
+    }
+  });
+
+  taskQueue.on("task:failed", ({ channelId, task }) => {
+    console.error(`[task-queue] Task ${task.id} failed on channel ${channelId}:`, task.error);
+    stopTyping(channelId);
+    context.sendMessage(
+      channelId,
+      "Sorry, something went wrong processing your message."
+    );
+  });
+
+  taskQueue.on("task:cancelled", ({ channelId, task }) => {
+    console.log(`[task-queue] Task ${task.id} cancelled on channel ${channelId}`);
+    stopTyping(channelId);
+  });
+
+  // Wire up connector message handlers — fire-and-forget via task queue
   for (const connector of registry.getConnectors()) {
     if (connector.onMessage) {
       connector.onMessage(async (msg: NormalizedMessage) => {
-        try {
+        taskQueue.enqueue(msg.channelId, async (signal) => {
           const result = await handleIncomingMessage({
             message: msg,
             db,
             mcpConfigPath: MCP_CONFIG_PATH,
+            signal,
           });
-          // Send response back through the connector
-          await context.sendMessage(msg.channelId, result.text);
-        } catch (err) {
-          console.error("Error handling message:", err);
-          await context.sendMessage(
-            msg.channelId,
-            "Sorry, something went wrong processing your message."
-          );
-        }
+          return result.text;
+        });
       });
     }
   }
@@ -155,6 +207,7 @@ async function main() {
   app.route("/api/memory", createMemoryRoutes());
   app.route("/api/skills", createSkillRoutes(registry));
   app.route("/api/jobs", createJobRoutes(db, scheduler));
+  app.route("/api/tasks", createTaskRoutes(taskQueue));
 
   // Start gateway HTTP server
   const server = Bun.serve({
@@ -170,10 +223,12 @@ async function main() {
   console.log("  GET  /api/logs");
   console.log("  GET  /api/skills");
   console.log("  GET  /api/jobs");
+  console.log("  GET  /api/tasks");
 
   // Graceful shutdown
   process.on("SIGINT", async () => {
     console.log("\nShutting down...");
+    taskQueue.destroy();
     await scheduler.stop();
     await registry.stopAll();
     await mcp.close();

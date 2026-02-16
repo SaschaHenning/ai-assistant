@@ -38,6 +38,7 @@ interface HandleMessageOptions {
   db: AppDatabase;
   mcpConfigPath: string;
   onToken?: (text: string) => void;
+  signal?: AbortSignal;
 }
 
 export async function handleIncomingMessage(
@@ -91,6 +92,7 @@ export async function handleIncomingMessage(
     sessionId: existingSession?.claudeSessionId || undefined,
     mcpConfigPath,
     onToken,
+    signal: options.signal,
   };
 
   const startTime = performance.now();

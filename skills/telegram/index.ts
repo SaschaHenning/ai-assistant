@@ -68,7 +68,8 @@ function createSkill(): Skill {
         context.log.info(`Telegram restricted to user IDs: ${[...allowedUsers].join(", ")}`);
       }
 
-      // Handle incoming text messages
+      // Handle incoming text messages — fire-and-forget (non-blocking)
+      // Typing indicators are managed centrally by the task queue in index.ts
       bot.on("message:text", async (ctx) => {
         const userId = String(ctx.from.id);
 
@@ -89,23 +90,13 @@ function createSkill(): Skill {
         };
 
         if (messageHandler) {
-          // Repeat typing indicator every 4s until reply comes back (max 2min)
-          const chatId = ctx.chat.id;
-          await ctx.api.sendChatAction(chatId, "typing");
-          const typingInterval = setInterval(async () => {
-            try { await ctx.api.sendChatAction(chatId, "typing"); } catch {}
-          }, 4000);
-          const typingTimeout = setTimeout(() => clearInterval(typingInterval), 120_000);
-          try {
-            await messageHandler(msg);
-          } finally {
-            clearInterval(typingInterval);
-            clearTimeout(typingTimeout);
-          }
+          messageHandler(msg).catch((err) =>
+            context.log.error("Message handler error:", err)
+          );
         }
       });
 
-      // Handle voice messages
+      // Handle voice messages — fire-and-forget after transcription
       bot.on("message:voice", async (ctx) => {
         const userId = String(ctx.from.id);
 
@@ -117,11 +108,6 @@ function createSkill(): Skill {
         if (!messageHandler) return;
 
         const chatId = ctx.chat.id;
-        await ctx.api.sendChatAction(chatId, "typing");
-        const typingInterval = setInterval(async () => {
-          try { await ctx.api.sendChatAction(chatId, "typing"); } catch {}
-        }, 4000);
-        const typingTimeout = setTimeout(() => clearInterval(typingInterval), 120_000);
 
         try {
           // Download voice file from Telegram
@@ -155,13 +141,13 @@ function createSkill(): Skill {
             timestamp: new Date(ctx.message.date * 1000),
           };
 
-          await messageHandler(msg);
+          // Fire-and-forget — typing managed by task queue
+          messageHandler(msg).catch((err) =>
+            context.log.error("Voice handler error:", err)
+          );
         } catch (err) {
           context.log.error("Voice message error:", err);
           await ctx.reply("Failed to process voice message.");
-        } finally {
-          clearInterval(typingInterval);
-          clearTimeout(typingTimeout);
         }
       });
 

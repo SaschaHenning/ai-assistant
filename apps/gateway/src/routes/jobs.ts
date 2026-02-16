@@ -144,12 +144,12 @@ export function createJobRoutes(db: AppDatabase, scheduler: JobScheduler) {
     return c.json({ ok: true });
   });
 
-  // Run job immediately
+  // Run job immediately — returns 202 Accepted (non-blocking)
   app.post("/:id/run", async (c) => {
     const id = c.req.param("id");
     try {
       await scheduler.runNow(id);
-      return c.json({ ok: true, message: "Job executed" });
+      return c.json({ ok: true, message: "Job started" }, 202);
     } catch (err) {
       return c.json({ error: String(err) }, 500);
     }
