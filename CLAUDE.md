@@ -9,12 +9,7 @@
 > 4. Create symlinks:
 >    - `mkdir -p .claude && ln -sf <SHARED_DIR>/AI-Rules/CLAUDE.md .claude/shared-rules.md`
 >    - `mkdir -p .claude/agents`
->    - `ln -sf <SHARED_DIR>/AI-Rules/agents/quality.md .claude/agents/quality.md`
->    - `ln -sf <SHARED_DIR>/AI-Rules/agents/security.md .claude/agents/security.md`
->    - `ln -sf <SHARED_DIR>/AI-Rules/agents/frontend.md .claude/agents/frontend.md`
->    - `ln -sf <SHARED_DIR>/AI-Rules/agents/backend.md .claude/agents/backend.md`
->    - `ln -sf <SHARED_DIR>/AI-Rules/agents/devops.md .claude/agents/devops.md`
->    - `ln -sf <SHARED_DIR>/AI-Rules/agents/testing.md .claude/agents/testing.md`
+>    - Symlink ALL agents: `for f in <SHARED_DIR>/AI-Rules/agents/*.md; do ln -sf "$f" .claude/agents/$(basename "$f"); done`
 > 5. Tell the user: "Shared AI rules were missing — I've set them up automatically."
 >
 > If `.claude/shared-rules.md` exists and is valid, skip this silently — do not mention it.
@@ -108,6 +103,58 @@ Ports are also set in `.env` — that takes precedence over defaults in code.
 - **mcp.json**: Auto-generated at gateway startup, do not edit manually.
 - **Versioning**: Uses the `VERSION` file in the repo root as single source of truth.
 
+## Agents
+
+This project uses JASP shared agents (installed in `.claude/agents/`). Using them is **mandatory**, not optional.
+
+**You MUST delegate to the appropriate agent for these tasks — do not do them manually:**
+
+| Task | Agent(s) |
+|------|----------|
+| After writing or modifying any code | `quality` |
+| After writing or modifying tests | `testing` |
+| When modifying API routes, DB, or server code | `backend` + `quality` |
+| When modifying UI components, styles, or client code | `frontend` + `quality` |
+| When touching auth, secrets, input handling, or deps | `security` |
+| When modifying CI/CD, Docker, or infra config | `devops` |
+| Before creating a PR | `quality` + `pr-review-toolkit:code-reviewer` |
+
+**Never skip an agent.** If an agent reports issues, fix them before continuing.
+
+### Agent Teams
+
+When the Teams feature is enabled (TeamCreate / SendMessage tools are available), **use agent teams for multi-step or cross-concern tasks**. Instead of running agents sequentially yourself, spawn a team and let agents work in parallel.
+
+**Use teams when:**
+- A task touches multiple concerns (e.g., backend + frontend + tests) — spawn agents for each in parallel
+- A feature requires research, implementation, and review — run exploration and coding concurrently
+- Multiple independent files or modules need changes — parallelize the work
+
+**How to use teams:**
+1. Create a team with `TeamCreate`
+2. Break the work into tasks with `TaskCreate`
+3. Spawn teammates via `Task` tool with `team_name` and appropriate `subagent_type`
+4. Coordinate via `TaskList` / `SendMessage`
+5. Shut down the team when done
+
+**If Teams is not available**, fall back to sequential agent delegation as described in the table above.
+
+### Task Lists
+
+For any non-trivial task (3+ steps, multi-file changes, or multi-stage work), **create a task list upfront** using `TaskCreate`. This makes progress visible, prevents steps from being forgotten, and helps recover context if the conversation gets long.
+
+**Always use task lists when:**
+- Implementing a feature that spans multiple files or components
+- Performing a multi-step refactor or migration
+- Working through a bug that requires investigation, fix, and verification
+- Any request where the user provides multiple items to complete
+
+**Task list workflow:**
+1. Break the work into discrete, actionable tasks with `TaskCreate`
+2. Mark each task `in_progress` before starting it
+3. Mark each task `completed` only when fully done (tests pass, no errors)
+4. If a task is blocked or reveals new work, create follow-up tasks
+5. Check `TaskList` after completing each task to pick up the next one
 
 ## Output Files
 
