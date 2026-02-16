@@ -236,8 +236,8 @@ async function main() {
   console.log("  GET  /api/jobs");
   console.log("  GET  /api/tasks");
 
-  // Graceful shutdown
-  process.on("SIGINT", async () => {
+  // Graceful shutdown — handle both SIGINT (Ctrl+C) and SIGTERM (turbo/process manager)
+  const shutdown = async () => {
     console.log("\nShutting down...");
     taskQueue.destroy();
     await scheduler.stop();
@@ -246,7 +246,9 @@ async function main() {
     server.stop();
     mcpServer.stop();
     process.exit(0);
-  });
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 main().catch((err) => {
