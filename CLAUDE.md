@@ -1,3 +1,23 @@
+<!-- JASP Shared Rules Auto-Setup -->
+<!-- DO NOT REMOVE: This block ensures shared AI rules are available for all developers -->
+
+> **Auto-setup check:** At the start of every conversation, verify that `.claude/shared-rules.md` exists and is a valid symlink (not broken). If it is missing or broken:
+>
+> 1. Find JASP-Shared: `find ~ -maxdepth 4 -type d -name "JASP-Shared" 2>/dev/null | head -5`
+> 2. If not found, clone it as a sibling of this project: `git clone https://github.com/JASP-eu/JASP-Shared.git ../JASP-Shared`
+> 3. Pull latest: `cd <SHARED_DIR> && git pull && cd -`
+> 4. Create symlinks:
+>    - `mkdir -p .claude && ln -sf <SHARED_DIR>/AI-Rules/CLAUDE.md .claude/shared-rules.md`
+>    - `mkdir -p .claude/agents`
+>    - `ln -sf <SHARED_DIR>/AI-Rules/agents/quality.md .claude/agents/quality.md`
+>    - `ln -sf <SHARED_DIR>/AI-Rules/agents/security.md .claude/agents/security.md`
+>    - `ln -sf <SHARED_DIR>/AI-Rules/agents/frontend.md .claude/agents/frontend.md`
+>    - `ln -sf <SHARED_DIR>/AI-Rules/agents/backend.md .claude/agents/backend.md`
+>    - `ln -sf <SHARED_DIR>/AI-Rules/agents/testing.md .claude/agents/testing.md`
+> 5. Tell the user: "Shared AI rules were missing — I've set them up automatically."
+>
+> If `.claude/shared-rules.md` exists and is valid, skip this silently — do not mention it.
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -79,16 +99,10 @@ Ports are also set in `.env` — that takes precedence over defaults in code.
 
 - **Runtime**: Bun everywhere (no Node). Use `bun:sqlite`, `Bun.serve()`, `Bun.spawn()`.
 - **Workspace imports**: `@ai-assistant/core`, `@ai-assistant/db`, `@ai-assistant/skill-runtime`
-- **TypeScript**: Strict mode, ESNext target, composite project references. Gateway/packages extend root tsconfig; web has its own.
+- **TypeScript**: ESNext target, composite project references. Gateway/packages extend root tsconfig; web has its own.
 - **Web UI**: Tailwind CSS utility classes, dark theme (gray-800/900 palette). No component library.
 - **Telegram formatting**: HTML parse mode (`<b>`, `<i>`, `<code>`, `<pre>`), not Markdown.
 - **Claude CLI integration**: Spawned as subprocess with `--stream-json` output format. Allowed/disallowed tool lists in `claude.ts`.
 - **Skill validation**: AI-generated skills are validated against forbidden patterns (see `skill-runtime/validator.ts`).
 - **mcp.json**: Auto-generated at gateway startup, do not edit manually.
-- **Versioning**: The `VERSION` file in the repo root is the single source of truth. Every feature, bugfix, or behavioral change must bump the version — use minor (`1.1.0` → `1.2.0`) for features and fixes, major (`1.2.0` → `2.0.0`) for breaking changes. Update the `VERSION` file as part of the same commit.
-
-## Workflow
-
-- **Pull requests**: Always use a feature branch and PR for new features and bug fixes — never commit directly to `main`.
-- **Before pushing**: Pull the latest changes from the remote branch and run `bun run build` to verify the build passes.
-- **Small commits**: Break work into small, focused commits. Split larger changes into smaller tasks — each commit should do one thing (e.g., separate schema changes from UI changes from business logic).
+- **Versioning**: Uses the `VERSION` file in the repo root as single source of truth.
