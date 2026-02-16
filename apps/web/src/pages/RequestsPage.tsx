@@ -147,8 +147,13 @@ export function RequestsPage() {
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => fetchTasks(), hasActive.current ? 2000 : 3000);
-    return () => clearInterval(interval);
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = () => {
+      fetchTasks();
+      timer = setTimeout(poll, hasActive.current ? 2000 : 3000);
+    };
+    timer = setTimeout(poll, 2000);
+    return () => clearTimeout(timer);
   }, []);
 
   const cancelTask = async (taskId: string) => {
