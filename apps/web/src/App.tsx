@@ -80,8 +80,11 @@ export default function App() {
 
       {/* Main content with top padding for header */}
       <div className="pt-10 h-full">
+        {/* ChatWindow is always mounted to preserve state (messages, stream, channelId) across navigation */}
+        <div className={location.pathname === "/" ? "h-full" : "hidden"}>
+          <ChatWindow />
+        </div>
         <Routes>
-          <Route path="/" element={<ChatWindow />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/active" element={<ActivePage />} />
