@@ -106,3 +106,12 @@ Ports are also set in `.env` — that takes precedence over defaults in code.
 - **Skill validation**: AI-generated skills are validated against forbidden patterns (see `skill-runtime/validator.ts`).
 - **mcp.json**: Auto-generated at gateway startup, do not edit manually.
 - **Versioning**: Uses the `VERSION` file in the repo root as single source of truth.
+
+## Output Files
+
+When creating files as task output (reports, exports, generated content, etc.):
+- **Requires** `OUTPUT_DIR` to be set in `.env` (e.g. `/Users/you/Desktop/AI-Assistant`)
+- Create a **task-specific subfolder** inside `$OUTPUT_DIR/`
+- Put all output files in that subfolder
+- In the response, reference the save location using `$OUTPUT_DIR_LABEL/<task-folder>/` (defaults to the last two path segments of `OUTPUT_DIR`)
+- If `OUTPUT_DIR` is not set, ask the user where to save output files
