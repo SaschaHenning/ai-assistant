@@ -138,22 +138,17 @@ export function RequestsPage() {
 
   useEffect(() => {
     fetchTasks();
+    // Re-fetch when tab becomes visible (user switching back to check)
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchTasks();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
   useEffect(() => {
-    const poll = () => {
-      const interval = hasActive.current ? 2000 : 10000;
-      return setInterval(() => fetchTasks(), interval);
-    };
-    let id = poll();
-    const checker = setInterval(() => {
-      clearInterval(id);
-      id = poll();
-    }, 5000);
-    return () => {
-      clearInterval(id);
-      clearInterval(checker);
-    };
+    const interval = setInterval(() => fetchTasks(), hasActive.current ? 2000 : 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const cancelTask = async (taskId: string) => {
