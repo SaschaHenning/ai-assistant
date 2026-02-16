@@ -155,7 +155,7 @@ ENV_FILE="$INSTALL_DIR/.env"
 
 if [ -f "$ENV_FILE" ]; then
     info "Existing .env found"
-    read -rp "Overwrite existing config? [y/N] " OVERWRITE
+    read -rp "Overwrite existing config? [y/N] " OVERWRITE < /dev/tty
     if [[ ! "$OVERWRITE" =~ ^[Yy]$ ]]; then
         ok "Keeping existing .env"
         SKIP_ENV=true
@@ -171,8 +171,8 @@ if [ "$SKIP_ENV" = false ]; then
     info "Configure your AI Assistant:"
     echo ""
 
-    read -rp "  Telegram Bot Token: " TELEGRAM_BOT_TOKEN
-    read -rp "  Telegram Allowed User IDs (comma-separated): " TELEGRAM_ALLOWED_USERS
+    read -rp "  Telegram Bot Token: " TELEGRAM_BOT_TOKEN < /dev/tty
+    read -rp "  Telegram Allowed User IDs (comma-separated): " TELEGRAM_ALLOWED_USERS < /dev/tty
 
     # ─── Step 6: Write .env ──────────────────────────────────────────────────
 
@@ -273,7 +273,7 @@ echo ""
 
 # ─── Step 10: Launch agent (start on login) ─────────────────────────────────
 
-read -rp "Start AI Assistant on login? [y/N] " START_ON_LOGIN
+read -rp "Start AI Assistant on login? [y/N] " START_ON_LOGIN < /dev/tty
 
 if [[ "$START_ON_LOGIN" =~ ^[Yy]$ ]]; then
     mkdir -p "$HOME/Library/LaunchAgents"
