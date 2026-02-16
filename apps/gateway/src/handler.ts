@@ -44,7 +44,7 @@ interface HandleMessageOptions {
 export async function handleIncomingMessage(
   options: HandleMessageOptions
 ): Promise<{ text: string; sessionId: string; costUsd?: number; durationMs: number; model?: string }> {
-  const { message, db, mcpConfigPath, onToken } = options;
+  const { message, db, mcpConfigPath, onToken, signal } = options;
 
   // Find or create channel
   let channel = await db.query.channels.findFirst({
