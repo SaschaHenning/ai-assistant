@@ -61,8 +61,8 @@ async function main() {
   // Manage typing indicators via task queue lifecycle events
   const typingIntervals = new Map<string, Timer>();
 
-  taskQueue.on("task:started", ({ channelId }: { channelId: string }) => {
-    // Start typing indicator for Telegram channels
+  taskQueue.on("task:started", ({ task, channelId }: { task: { platform?: string }; channelId: string }) => {
+    if (task.platform === "web") return;
     const sendTyping = async () => {
       const skill = registry.get("telegram");
       if (!skill) return;

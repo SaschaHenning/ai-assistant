@@ -40,10 +40,10 @@ export function createChatRoutes(db: AppDatabase, mcpConfigPath: string, taskQue
             mcpConfigPath,
             signal,
             onToken: (text) => {
-              stream.writeSSE({
+              void stream.writeSSE({
                 data: JSON.stringify({ type: "token", text }),
                 event: "token",
-              });
+              }).catch(() => {});
             },
           });
           sessionId = result.sessionId;
@@ -82,6 +82,10 @@ export function createChatRoutes(db: AppDatabase, mcpConfigPath: string, taskQue
       taskQueue.on("task:completed", onComplete);
       taskQueue.on("task:failed", onFailed);
       taskQueue.on("task:cancelled", onCancelled);
+
+      stream.onAbort(() => {
+        cleanup();
+      });
 
       try {
         const text = await promise;
