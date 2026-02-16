@@ -46,7 +46,7 @@ export function KnowledgePage() {
       await fetch("/api/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle, content: newContent }),
+        body: JSON.stringify({ title: newTitle.trim(), content: newContent.trim() }),
       });
       setNewTitle("");
       setNewContent("");
@@ -73,12 +73,13 @@ export function KnowledgePage() {
   };
 
   const saveEdit = async (id: string) => {
+    if (!editTitle.trim()) return;
     setSaving(true);
     try {
       await fetch(`/api/knowledge/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: editTitle, content: editContent }),
+        body: JSON.stringify({ title: editTitle.trim(), content: editContent.trim() }),
       });
       setEditingId(null);
       setEditTitle("");
@@ -312,7 +313,7 @@ export function KnowledgePage() {
                         </button>
                         <button
                           onClick={() => saveEdit(entry.id)}
-                          disabled={saving}
+                          disabled={!editTitle.trim() || saving}
                           className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors"
                         >
                           {saving ? "Saving..." : "Save"}

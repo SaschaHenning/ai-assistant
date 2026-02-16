@@ -22,7 +22,10 @@ export function createKnowledgeRoutes(db: AppDatabase) {
       sortOrder?: number;
     }>();
 
-    if (!body.title || !body.content) {
+    const title = body.title?.trim();
+    const content = body.content?.trim();
+
+    if (!title || !content) {
       return c.json({ error: "Missing required fields: title, content" }, 400);
     }
 
@@ -31,8 +34,8 @@ export function createKnowledgeRoutes(db: AppDatabase) {
 
     await db.insert(schema.knowledge).values({
       id,
-      title: body.title,
-      content: body.content,
+      title,
+      content,
       enabled: body.enabled ?? true,
       sortOrder: body.sortOrder ?? 0,
       createdAt: now,
@@ -80,9 +83,22 @@ export function createKnowledgeRoutes(db: AppDatabase) {
     });
     if (!existing) return c.json({ error: "Knowledge entry not found" }, 404);
 
+    if (body.title !== undefined && !body.title.trim()) {
+      return c.json({ error: "Title cannot be empty" }, 400);
+    }
+    if (body.content !== undefined && !body.content.trim()) {
+      return c.json({ error: "Content cannot be empty" }, 400);
+    }
+
     await db
       .update(schema.knowledge)
-      .set({ ...body, updatedAt: new Date() })
+      .set({
+        ...(body.title !== undefined && { title: body.title.trim() }),
+        ...(body.content !== undefined && { content: body.content.trim() }),
+        ...(body.enabled !== undefined && { enabled: body.enabled }),
+        ...(body.sortOrder !== undefined && { sortOrder: body.sortOrder }),
+        updatedAt: new Date(),
+      })
       .where(eq(schema.knowledge.id, id));
 
     const updated = await db.query.knowledge.findFirst({
