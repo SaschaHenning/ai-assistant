@@ -5,6 +5,7 @@ import { SkillPanel } from "./components/SkillPanel";
 import { LogsPage } from "./pages/LogsPage";
 import { MemoryPage } from "./pages/MemoryPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
+import { ActivePage } from "./pages/ActivePage";
 
 export default function App() {
   const [skillPanelOpen, setSkillPanelOpen] = useState(false);
@@ -48,6 +49,16 @@ export default function App() {
               Memory
             </Link>
             <Link
+              to="/active"
+              className={`text-sm px-3 py-1 rounded-md transition-colors ${
+                location.pathname === "/active"
+                  ? "bg-gray-700 text-gray-100"
+                  : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+              }`}
+            >
+              Active
+            </Link>
+            <Link
               to="/schedules"
               className={`text-sm px-3 py-1 rounded-md transition-colors ${
                 location.pathname === "/schedules"
@@ -73,6 +84,7 @@ export default function App() {
           <Route path="/" element={<ChatWindow />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/memory" element={<MemoryPage />} />
+          <Route path="/active" element={<ActivePage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
         </Routes>
       </div>

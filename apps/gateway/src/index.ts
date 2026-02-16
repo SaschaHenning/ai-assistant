@@ -115,15 +115,23 @@ async function main() {
   for (const connector of registry.getConnectors()) {
     if (connector.onMessage) {
       connector.onMessage(async (msg: NormalizedMessage) => {
-        taskQueue.enqueue(msg.channelId, async (signal) => {
-          const result = await handleIncomingMessage({
-            message: msg,
-            db,
-            mcpConfigPath: MCP_CONFIG_PATH,
-            signal,
-          });
-          return result.text;
-        });
+        taskQueue.enqueue(
+          msg.channelId,
+          async (signal) => {
+            const result = await handleIncomingMessage({
+              message: msg,
+              db,
+              mcpConfigPath: MCP_CONFIG_PATH,
+              signal,
+            });
+            return result.text;
+          },
+          {
+            messagePreview: msg.text.slice(0, 200),
+            platform: msg.platform,
+            userName: msg.userName,
+          }
+        );
       });
     }
   }
