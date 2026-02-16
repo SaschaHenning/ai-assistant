@@ -26,7 +26,7 @@ echo -e "${BOLD}🤖 AI Assistant Uninstaller${NC}"
 echo "────────────────────────────────────────"
 echo ""
 
-read -rp "This will remove AI Assistant and all its data. Continue? [y/N] " CONFIRM
+read -rp "This will remove AI Assistant and all its data. Continue? [y/N] " CONFIRM < /dev/tty
 if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
     info "Cancelled."
     exit 0
@@ -70,7 +70,7 @@ fi
 # Remove repo / installation
 if [ -d "$INSTALL_DIR" ]; then
     echo ""
-    read -rp "Also remove the repository and all data at $INSTALL_DIR? [y/N] " REMOVE_REPO
+    read -rp "Also remove the repository and all data at $INSTALL_DIR? [y/N] " REMOVE_REPO < /dev/tty
     if [[ "$REMOVE_REPO" =~ ^[Yy]$ ]]; then
         rm -rf "$INSTALL_DIR"
         ok "Repository removed: $INSTALL_DIR"

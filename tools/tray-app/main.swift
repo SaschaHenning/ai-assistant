@@ -32,6 +32,28 @@ func loadEnv(projectRoot: String) -> [String: String] {
             }
         }
     }
+
+    // Get user's full shell PATH (GUI apps only get minimal PATH)
+    let shell = env["SHELL"] ?? "/bin/zsh"
+    let pathProc = Process()
+    pathProc.executableURL = URL(fileURLWithPath: shell)
+    pathProc.arguments = ["-l", "-c", "printf '%s' \"$PATH\""]
+    let pipe = Pipe()
+    pathProc.standardOutput = pipe
+    pathProc.standardError = FileHandle.nullDevice
+    do {
+        try pathProc.run()
+        pathProc.waitUntilExit()
+    } catch {
+        // Fall through — keep existing PATH from ProcessInfo
+    }
+    let rawOutput = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    let shellPath = rawOutput.components(separatedBy: .newlines).last?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    if let shellPath = shellPath, !shellPath.isEmpty {
+        env["PATH"] = shellPath
+    }
+
     return env
 }
 
