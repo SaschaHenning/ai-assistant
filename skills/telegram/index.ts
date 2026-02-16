@@ -89,19 +89,10 @@ function createSkill(): Skill {
         };
 
         if (messageHandler) {
-          // Repeat typing indicator every 4s until reply comes back (max 2min)
-          const chatId = ctx.chat.id;
-          await ctx.api.sendChatAction(chatId, "typing");
-          const typingInterval = setInterval(async () => {
-            try { await ctx.api.sendChatAction(chatId, "typing"); } catch {}
-          }, 4000);
-          const typingTimeout = setTimeout(() => clearInterval(typingInterval), 120_000);
-          try {
-            await messageHandler(msg);
-          } finally {
-            clearInterval(typingInterval);
-            clearTimeout(typingTimeout);
-          }
+          // Fire-and-forget — task queue handles typing + response delivery
+          messageHandler(msg).catch((err) =>
+            context.log.error("Message handler error:", err)
+          );
         }
       });
 
@@ -117,11 +108,6 @@ function createSkill(): Skill {
         if (!messageHandler) return;
 
         const chatId = ctx.chat.id;
-        await ctx.api.sendChatAction(chatId, "typing");
-        const typingInterval = setInterval(async () => {
-          try { await ctx.api.sendChatAction(chatId, "typing"); } catch {}
-        }, 4000);
-        const typingTimeout = setTimeout(() => clearInterval(typingInterval), 120_000);
 
         try {
           // Download voice file from Telegram
@@ -155,13 +141,13 @@ function createSkill(): Skill {
             timestamp: new Date(ctx.message.date * 1000),
           };
 
-          await messageHandler(msg);
+          // Fire-and-forget — task queue handles typing + response delivery
+          messageHandler(msg).catch((err) =>
+            context.log.error("Voice handler error:", err)
+          );
         } catch (err) {
           context.log.error("Voice message error:", err);
           await ctx.reply("Failed to process voice message.");
-        } finally {
-          clearInterval(typingInterval);
-          clearTimeout(typingTimeout);
         }
       });
 

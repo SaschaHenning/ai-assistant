@@ -30,6 +30,7 @@ export class JobScheduler {
   private messageSenders: Map<string, (channelId: string, text: string) => Promise<void>>;
   private sendTypingAction?: (platform: string, chatId: string) => Promise<void>;
   private running = false;
+  private runningJobs = new Set<string>();
 
   constructor(options: SchedulerOptions) {
     this.db = options.db;
@@ -130,6 +131,11 @@ export class JobScheduler {
   }
 
   private async executeJob(job: ScheduledJobRow) {
+    if (this.runningJobs.has(job.id)) {
+      console.warn(`[scheduler] Job "${job.name}" is already running, skipping`);
+      return;
+    }
+    this.runningJobs.add(job.id);
     console.log(`[scheduler] Executing job: ${job.name} (${job.id})`);
 
     const startTime = Date.now();
@@ -217,6 +223,8 @@ export class JobScheduler {
       })
       .where(eq(schema.scheduledJobs.id, job.id));
 
+    this.runningJobs.delete(job.id);
+
     // Reschedule for next run
     const refreshedJob = await this.db.query.scheduledJobs.findFirst({
       where: eq(schema.scheduledJobs.id, job.id),
@@ -236,6 +244,13 @@ export class JobScheduler {
       throw new Error(`Job ${jobId} not found`);
     }
 
-    await this.executeJob(job);
+    if (this.runningJobs.has(jobId)) {
+      throw new Error(`Job "${job.name}" is already running`);
+    }
+
+    // Fire and forget — do not await
+    this.executeJob(job).catch((err) =>
+      console.error(`[scheduler] runNow error for "${job.name}":`, err)
+    );
   }
 }

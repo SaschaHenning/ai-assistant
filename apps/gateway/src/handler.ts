@@ -38,12 +38,13 @@ interface HandleMessageOptions {
   db: AppDatabase;
   mcpConfigPath: string;
   onToken?: (text: string) => void;
+  signal?: AbortSignal;
 }
 
 export async function handleIncomingMessage(
   options: HandleMessageOptions
 ): Promise<{ text: string; sessionId: string; costUsd?: number; durationMs: number; model?: string }> {
-  const { message, db, mcpConfigPath, onToken } = options;
+  const { message, db, mcpConfigPath, onToken, signal } = options;
 
   // Find or create channel
   let channel = await db.query.channels.findFirst({
@@ -91,6 +92,7 @@ export async function handleIncomingMessage(
     sessionId: existingSession?.claudeSessionId || undefined,
     mcpConfigPath,
     onToken,
+    signal,
   };
 
   const startTime = performance.now();
