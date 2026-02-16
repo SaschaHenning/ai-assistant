@@ -4,8 +4,9 @@ import { randomUUID } from "crypto";
 import type { NormalizedMessage } from "@ai-assistant/core";
 import type { AppDatabase } from "@ai-assistant/db";
 import { handleIncomingMessage } from "../handler";
+import type { TaskQueue } from "../task-queue";
 
-export function createChatRoutes(db: AppDatabase, mcpConfigPath: string) {
+export function createChatRoutes(db: AppDatabase, mcpConfigPath: string, taskQueue: TaskQueue) {
   const app = new Hono();
 
   // SSE streaming chat endpoint
@@ -28,24 +29,67 @@ export function createChatRoutes(db: AppDatabase, mcpConfigPath: string) {
     };
 
     return streamSSE(c, async (stream) => {
-      try {
-        const result = await handleIncomingMessage({
-          message,
-          db,
-          mcpConfigPath,
-          onToken: (text) => {
-            stream.writeSSE({
-              data: JSON.stringify({ type: "token", text }),
-              event: "token",
-            });
-          },
-        });
+      let sessionId: string | undefined;
 
+      const task = taskQueue.enqueue(
+        channelId,
+        async (signal) => {
+          const result = await handleIncomingMessage({
+            message,
+            db,
+            mcpConfigPath,
+            signal,
+            onToken: (text) => {
+              stream.writeSSE({
+                data: JSON.stringify({ type: "token", text }),
+                event: "token",
+              });
+            },
+          });
+          sessionId = result.sessionId;
+          return result.text;
+        },
+        {
+          messagePreview: body.message.slice(0, 200),
+          platform: "web",
+        }
+      );
+
+      // Bridge task queue completion to SSE stream
+      const { promise, resolve, reject } = Promise.withResolvers<string>();
+
+      const onComplete = ({ task: t }: { task: { id: string; result?: string } }) => {
+        if (t.id !== task.id) return;
+        cleanup();
+        resolve(t.result || "");
+      };
+      const onFailed = ({ task: t }: { task: { id: string; error?: string } }) => {
+        if (t.id !== task.id) return;
+        cleanup();
+        reject(new Error(t.error || "Unknown error"));
+      };
+      const onCancelled = ({ task: t }: { task: { id: string } }) => {
+        if (t.id !== task.id) return;
+        cleanup();
+        reject(new Error("Task was cancelled"));
+      };
+      const cleanup = () => {
+        taskQueue.off("task:completed", onComplete);
+        taskQueue.off("task:failed", onFailed);
+        taskQueue.off("task:cancelled", onCancelled);
+      };
+
+      taskQueue.on("task:completed", onComplete);
+      taskQueue.on("task:failed", onFailed);
+      taskQueue.on("task:cancelled", onCancelled);
+
+      try {
+        const text = await promise;
         await stream.writeSSE({
           data: JSON.stringify({
             type: "done",
-            text: result.text,
-            sessionId: result.sessionId,
+            text,
+            sessionId,
             channelId,
           }),
           event: "done",

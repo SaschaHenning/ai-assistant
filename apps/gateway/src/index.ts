@@ -90,7 +90,9 @@ async function main() {
   taskQueue.on("task:cancelled", stopTyping);
 
   // Deliver results/errors back to the user via task queue events
-  taskQueue.on("task:completed", ({ task, channelId }: { task: { result?: string }; channelId: string }) => {
+  // Web tasks handle their own response via SSE, so skip them here
+  taskQueue.on("task:completed", ({ task, channelId }: { task: { result?: string; platform?: string }; channelId: string }) => {
+    if (task.platform === "web") return;
     if (task.result) {
       context.sendMessage(channelId, task.result).catch((err) =>
         console.error("Failed to send task result:", err)
@@ -98,14 +100,16 @@ async function main() {
     }
   });
 
-  taskQueue.on("task:failed", ({ task, channelId }: { task: { error?: string }; channelId: string }) => {
+  taskQueue.on("task:failed", ({ task, channelId }: { task: { error?: string; platform?: string }; channelId: string }) => {
+    if (task.platform === "web") return;
     const errorText = task.error || "Unknown error";
     context.sendMessage(channelId, `Sorry, something went wrong: ${errorText}`).catch((err) =>
       console.error("Failed to send error message:", err)
     );
   });
 
-  taskQueue.on("task:cancelled", ({ channelId }: { channelId: string }) => {
+  taskQueue.on("task:cancelled", ({ task, channelId }: { task: { platform?: string }; channelId: string }) => {
+    if (task.platform === "web") return;
     context.sendMessage(channelId, "Task was cancelled.").catch((err) =>
       console.error("Failed to send cancellation message:", err)
     );
@@ -209,7 +213,7 @@ async function main() {
   app.get("/health", (c) => c.json({ status: "ok", skills: registry.getAll().length }));
 
   // Routes
-  app.route("/api/chat", createChatRoutes(db, MCP_CONFIG_PATH));
+  app.route("/api/chat", createChatRoutes(db, MCP_CONFIG_PATH, taskQueue));
   app.route("/api/logs", createLogRoutes(db));
   app.route("/api/memory", createMemoryRoutes());
   app.route("/api/skills", createSkillRoutes(registry));
