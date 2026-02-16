@@ -13,6 +13,7 @@
 >    - `ln -sf <SHARED_DIR>/AI-Rules/agents/security.md .claude/agents/security.md`
 >    - `ln -sf <SHARED_DIR>/AI-Rules/agents/frontend.md .claude/agents/frontend.md`
 >    - `ln -sf <SHARED_DIR>/AI-Rules/agents/backend.md .claude/agents/backend.md`
+>    - `ln -sf <SHARED_DIR>/AI-Rules/agents/devops.md .claude/agents/devops.md`
 >    - `ln -sf <SHARED_DIR>/AI-Rules/agents/testing.md .claude/agents/testing.md`
 > 5. Tell the user: "Shared AI rules were missing — I've set them up automatically."
 >
