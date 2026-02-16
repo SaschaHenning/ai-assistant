@@ -58,11 +58,11 @@ async function main() {
   // Create per-channel task queue for non-blocking message processing
   const taskQueue = new TaskQueue();
 
-  // Typing indicator management per channel
+  // Manage typing indicators via task queue lifecycle events
   const typingIntervals = new Map<string, Timer>();
 
-  function startTyping(channelId: string) {
-    if (typingIntervals.has(channelId)) return;
+  taskQueue.on("task:started", ({ channelId }: { channelId: string }) => {
+    // Start typing indicator for Telegram channels
     const sendTyping = async () => {
       const skill = registry.get("telegram");
       if (!skill) return;
@@ -73,43 +73,42 @@ async function main() {
       } catch {}
     };
     sendTyping();
-    typingIntervals.set(channelId, setInterval(sendTyping, 4000));
-  }
+    const interval = setInterval(sendTyping, 4000);
+    typingIntervals.set(channelId, interval);
+  });
 
-  function stopTyping(channelId: string) {
+  const stopTyping = ({ channelId }: { channelId: string }) => {
     const interval = typingIntervals.get(channelId);
     if (interval) {
       clearInterval(interval);
       typingIntervals.delete(channelId);
     }
-  }
+  };
 
-  // Task queue event handlers — deliver results and manage typing
-  taskQueue.on("task:started", ({ channelId, task }) => {
-    console.log(`[task-queue] Task ${task.id} started on channel ${channelId}`);
-    startTyping(channelId);
-  });
+  taskQueue.on("task:completed", stopTyping);
+  taskQueue.on("task:failed", stopTyping);
+  taskQueue.on("task:cancelled", stopTyping);
 
-  taskQueue.on("task:completed", ({ channelId, task }) => {
-    console.log(`[task-queue] Task ${task.id} completed on channel ${channelId}`);
-    stopTyping(channelId);
+  // Deliver results/errors back to the user via task queue events
+  taskQueue.on("task:completed", ({ task, channelId }: { task: { result?: string }; channelId: string }) => {
     if (task.result) {
-      context.sendMessage(channelId, task.result);
+      context.sendMessage(channelId, task.result).catch((err) =>
+        console.error("Failed to send task result:", err)
+      );
     }
   });
 
-  taskQueue.on("task:failed", ({ channelId, task }) => {
-    console.error(`[task-queue] Task ${task.id} failed on channel ${channelId}:`, task.error);
-    stopTyping(channelId);
-    context.sendMessage(
-      channelId,
-      "Sorry, something went wrong processing your message."
+  taskQueue.on("task:failed", ({ task, channelId }: { task: { error?: string }; channelId: string }) => {
+    const errorText = task.error || "Unknown error";
+    context.sendMessage(channelId, `Sorry, something went wrong: ${errorText}`).catch((err) =>
+      console.error("Failed to send error message:", err)
     );
   });
 
-  taskQueue.on("task:cancelled", ({ channelId, task }) => {
-    console.log(`[task-queue] Task ${task.id} cancelled on channel ${channelId}`);
-    stopTyping(channelId);
+  taskQueue.on("task:cancelled", ({ channelId }: { channelId: string }) => {
+    context.sendMessage(channelId, "Task was cancelled.").catch((err) =>
+      console.error("Failed to send cancellation message:", err)
+    );
   });
 
   // Wire up connector message handlers — fire-and-forget via task queue
