@@ -19,8 +19,8 @@ export interface ClaudeResult {
 /** Kill the Claude process if no output is received for 5 minutes. */
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
 
-/** Kill the Claude process unconditionally after 30 minutes. */
-const HARD_TIMEOUT = 30 * 60 * 1000;
+/** Kill the Claude process unconditionally after 2 hours. */
+const HARD_TIMEOUT = 2 * 60 * 60 * 1000;
 
 const ALLOWED_TOOLS = [
   "mcp__ai-assistant__*",
