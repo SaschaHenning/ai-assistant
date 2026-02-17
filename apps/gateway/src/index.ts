@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { serveStatic } from "hono/bun";
 import { join, resolve } from "path";
 import type { NormalizedMessage } from "@ai-assistant/core";
 import { getDb, runMigrations } from "@ai-assistant/db";
@@ -22,8 +23,11 @@ const SKILLS_DIR = join(PROJECT_ROOT, "skills");
 const MCP_CONFIG_PATH = join(PROJECT_ROOT, "mcp.json");
 const DB_PATH = process.env.DATABASE_PATH || join(PROJECT_ROOT, "data", "assistant.db");
 
+const VERSION = await Bun.file(join(PROJECT_ROOT, "VERSION")).text()
+  .then(v => v.trim()).catch(() => "unknown");
+
 async function main() {
-  console.log("Starting AI Assistant Gateway...");
+  console.log(`Starting AI Assistant Gateway v${VERSION}...`);
 
   // Ensure data directory exists
   const dataDir = join(PROJECT_ROOT, "data");
@@ -169,7 +173,7 @@ async function main() {
   await scheduler.start();
 
   // Create and start MCP server
-  const mcp = createMcpServer(registry, context);
+  const mcp = createMcpServer(registry, context, VERSION);
 
   // Write mcp.json config for Claude CLI
   await Bun.write(
@@ -210,7 +214,7 @@ async function main() {
   app.use("*", cors());
 
   // Health check
-  app.get("/health", (c) => c.json({ status: "ok", skills: registry.getAll().length }));
+  app.get("/health", (c) => c.json({ status: "ok", version: VERSION, skills: registry.getAll().length }));
 
   // Routes
   app.route("/api/chat", createChatRoutes(db, MCP_CONFIG_PATH, taskQueue));
@@ -219,6 +223,15 @@ async function main() {
   app.route("/api/skills", createSkillRoutes(registry));
   app.route("/api/jobs", createJobRoutes(db, scheduler));
   app.route("/api/tasks", createTaskRoutes(taskQueue));
+
+  // Serve web UI static files (Docker: built SPA served from gateway)
+  const webDistPath = join(PROJECT_ROOT, "apps/web/dist");
+  if (await Bun.file(join(webDistPath, "index.html")).exists()) {
+    const indexHtml = await Bun.file(join(webDistPath, "index.html")).text();
+    app.use("/*", serveStatic({ root: webDistPath }));
+    app.get("*", (c) => c.html(indexHtml));
+    console.log("Serving web UI from", webDistPath);
+  }
 
   // Start gateway HTTP server
   const server = Bun.serve({

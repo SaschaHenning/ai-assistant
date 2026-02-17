@@ -9,10 +9,10 @@ export interface McpServerInstance {
   close: () => Promise<void>;
 }
 
-function buildServer(registry: SkillRegistry, context: SkillContext): McpServer {
+function buildServer(registry: SkillRegistry, context: SkillContext, version: string): McpServer {
   const server = new McpServer({
     name: "ai-assistant",
-    version: "1.0.0",
+    version,
   });
 
   // Register all skill tools as MCP tools
@@ -38,7 +38,8 @@ function buildServer(registry: SkillRegistry, context: SkillContext): McpServer 
 
 export function createMcpServer(
   registry: SkillRegistry,
-  context: SkillContext
+  context: SkillContext,
+  version = "1.0.0"
 ): McpServerInstance {
   const tools = registry.getAllTools();
   context.log.info(`MCP server registered ${tools.size} tools`);
@@ -60,7 +61,7 @@ export function createMcpServer(
     }
 
     // New session - create server + transport
-    const server = buildServer(registry, context);
+    const server = buildServer(registry, context, version);
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (id) => {
