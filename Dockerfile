@@ -37,10 +37,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Claude CLI globally (pin version for reproducibility)
-RUN bun add -g @anthropic-ai/claude-code@0.2
+# Use HOME=/home/bun so files install to bun user's home, not /root
+RUN HOME=/home/bun bun add -g @anthropic-ai/claude-code@latest
 
-# Copy dependencies from deps stage
+# Copy dependencies from deps stage (root + workspace-level)
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/gateway/node_modules ./apps/gateway/node_modules
 
 # Copy source code (Bun runs TypeScript directly)
 COPY package.json tsconfig.json VERSION ./
