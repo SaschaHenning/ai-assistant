@@ -40,7 +40,7 @@ export function KnowledgePage() {
   }, [fetchEntries]);
 
   const createEntry = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || !newContent.trim()) return;
     setSaving(true);
     try {
       await fetch("/api/knowledge", {
@@ -73,7 +73,7 @@ export function KnowledgePage() {
   };
 
   const saveEdit = async (id: string) => {
-    if (!editTitle.trim()) return;
+    if (!editTitle.trim() || !editContent.trim()) return;
     setSaving(true);
     try {
       await fetch(`/api/knowledge/${id}`, {
@@ -205,7 +205,7 @@ export function KnowledgePage() {
                 </button>
                 <button
                   onClick={createEntry}
-                  disabled={!newTitle.trim() || saving}
+                  disabled={!newTitle.trim() || !newContent.trim() || saving}
                   className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors"
                 >
                   {saving ? "Saving..." : "Save"}
@@ -313,7 +313,7 @@ export function KnowledgePage() {
                         </button>
                         <button
                           onClick={() => saveEdit(entry.id)}
-                          disabled={!editTitle.trim() || saving}
+                          disabled={!editTitle.trim() || !editContent.trim() || saving}
                           className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors"
                         >
                           {saving ? "Saving..." : "Save"}

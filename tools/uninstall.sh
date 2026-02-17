@@ -21,6 +21,15 @@ info()  { echo -e "${BLUE}[info]${NC}  $*"; }
 ok()    { echo -e "${GREEN}[ok]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[warn]${NC}  $*"; }
 
+require_tty() {
+    if [ ! -t 0 ] && [ ! -e /dev/tty ]; then
+        echo -e "${RED}[error]${NC} This script requires an interactive terminal (TTY). Run it directly in a terminal, not via curl|bash in a non-interactive context."
+        exit 1
+    fi
+}
+
+require_tty
+
 echo ""
 echo -e "${BOLD}🤖 AI Assistant Uninstaller${NC}"
 echo "────────────────────────────────────────"
