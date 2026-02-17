@@ -1,0 +1,19 @@
+services:
+  assistant:
+    build:
+      context: .
+      args:
+        APP_VERSION: "${APP_VERSION:-1.5.0}"
+    ports:
+      - "4300:4300"
+    volumes:
+      - assistant-data:/app/data
+      - claude-config:/home/bun/.claude
+    env_file: .env
+    environment:
+      - DATABASE_PATH=/app/data/assistant.db
+    restart: unless-stopped
+
+volumes:
+  assistant-data:
+  claude-config:
