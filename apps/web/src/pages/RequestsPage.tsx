@@ -23,6 +23,7 @@ function Duration({ since }: { since: string }) {
 
   useEffect(() => {
     const start = new Date(since).getTime();
+    if (isNaN(start)) return;
     const update = () => {
       const s = Math.floor((Date.now() - start) / 1000);
       if (s < 60) setElapsed(`${s}s`);
@@ -34,6 +35,7 @@ function Duration({ since }: { since: string }) {
     return () => clearInterval(interval);
   }, [since]);
 
+  if (!elapsed) return <span>-</span>;
   return <span>{elapsed}</span>;
 }
 
@@ -193,9 +195,11 @@ export function RequestsPage() {
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Active requests section */}
-        {tasks.length > 0 && (
-          <section>
-            <h2 className="text-lg font-semibold text-gray-200 mb-3">Active</h2>
+        <section>
+          <h2 className="text-lg font-semibold text-gray-200 mb-3">Active</h2>
+          {tasks.length === 0 ? (
+            <p className="text-gray-500 text-sm">No active requests</p>
+          ) : (
             <div className="space-y-3">
               {tasks.map((task) => {
                 const cfg = statusConfig[task.status] || statusConfig.cancelled;
@@ -279,8 +283,8 @@ export function RequestsPage() {
                 );
               })}
             </div>
-          </section>
-        )}
+          )}
+        </section>
 
         {/* Logs section */}
         <section>

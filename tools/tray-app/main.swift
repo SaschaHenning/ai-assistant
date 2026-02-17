@@ -34,7 +34,8 @@ func loadEnv(projectRoot: String) -> [String: String] {
     }
 
     // Get user's full shell PATH (GUI apps only get minimal PATH)
-    let shell = env["SHELL"] ?? "/bin/zsh"
+    // Read SHELL from system environment only — never from .env to prevent arbitrary binary execution
+    let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
     let pathProc = Process()
     pathProc.executableURL = URL(fileURLWithPath: shell)
     pathProc.arguments = ["-l", "-c", "printf '%s' \"$PATH\""]
@@ -43,7 +44,16 @@ func loadEnv(projectRoot: String) -> [String: String] {
     pathProc.standardError = FileHandle.nullDevice
     do {
         try pathProc.run()
-        pathProc.waitUntilExit()
+        // Timeout after 5 seconds to prevent hangs from shell init scripts
+        let deadline = DispatchTime.now() + .seconds(5)
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            pathProc.waitUntilExit()
+            done.signal()
+        }
+        if done.wait(timeout: deadline) == .timedOut {
+            pathProc.terminate()
+        }
     } catch {
         // Fall through — keep existing PATH from ProcessInfo
     }

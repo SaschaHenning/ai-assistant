@@ -95,7 +95,7 @@ Ports are also set in `.env` — that takes precedence over defaults in code.
 
 - **Runtime**: Bun everywhere (no Node). Use `bun:sqlite`, `Bun.serve()`, `Bun.spawn()`.
 - **Workspace imports**: `@ai-assistant/core`, `@ai-assistant/db`, `@ai-assistant/skill-runtime`
-- **TypeScript**: ESNext target, composite project references. Gateway/packages extend root tsconfig; web has its own.
+- **TypeScript**: Strict mode, ESNext target, composite project references. Gateway/packages extend root tsconfig; web has its own.
 - **Web UI**: Tailwind CSS utility classes, dark theme (gray-800/900 palette). No component library.
 - **Telegram formatting**: HTML parse mode (`<b>`, `<i>`, `<code>`, `<pre>`), not Markdown.
 - **Claude CLI integration**: Spawned as subprocess with `--stream-json` output format. Allowed/disallowed tool lists in `claude.ts`.

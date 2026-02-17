@@ -31,6 +31,14 @@ ok()    { echo -e "${GREEN}[ok]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[warn]${NC}  $*"; }
 error() { echo -e "${RED}[error]${NC} $*"; exit 1; }
 
+require_tty() {
+    if [ ! -t 0 ] && [ ! -e /dev/tty ]; then
+        error "This script requires an interactive terminal (TTY). Run it directly in a terminal, not via curl|bash in a non-interactive context."
+    fi
+}
+
+require_tty
+
 # ─── Step 1: Check and install prerequisites ────────────────────────────────
 
 echo ""
