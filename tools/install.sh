@@ -202,7 +202,20 @@ fi
 
 echo ""
 
-# ─── Step 7: Compile Swift app ──────────────────────────────────────────────
+# ─── Step 7: Stop running tray app ──────────────────────────────────────────
+
+if pgrep -f "ai-assistant-tray" &>/dev/null; then
+    info "Stopping running AI Assistant..."
+    pkill -f "ai-assistant-tray" 2>/dev/null || true
+    sleep 1
+    ok "Old instance stopped"
+else
+    info "No running instance found"
+fi
+
+echo ""
+
+# ─── Step 8: Compile Swift app ──────────────────────────────────────────────
 
 info "Compiling menu bar app..."
 
@@ -217,7 +230,7 @@ swiftc -O -o "$TRAY_BIN" "$SWIFT_SRC" -framework Cocoa
 ok "Menu bar app compiled"
 echo ""
 
-# ─── Step 8: Create .app bundle ─────────────────────────────────────────────
+# ─── Step 9: Create .app bundle ─────────────────────────────────────────────
 
 info "Creating app bundle..."
 
@@ -256,7 +269,7 @@ PLIST
 ok "App bundle created at $APP_DIR"
 echo ""
 
-# ─── Step 9: Write config.json ──────────────────────────────────────────────
+# ─── Step 10: Write config.json ─────────────────────────────────────────────
 
 info "Writing config..."
 
@@ -279,7 +292,7 @@ EOF
 ok "Config written to $CONFIG_DIR/config.json"
 echo ""
 
-# ─── Step 10: Launch agent (start on login) ─────────────────────────────────
+# ─── Step 11: Launch agent (start on login) ─────────────────────────────────
 
 read -rp "Start AI Assistant on login? [y/N] " START_ON_LOGIN < /dev/tty
 
@@ -314,7 +327,7 @@ fi
 
 echo ""
 
-# ─── Step 11: Open the app ──────────────────────────────────────────────────
+# ─── Step 12: Open the app ──────────────────────────────────────────────────
 
 info "Launching AI Assistant..."
 open "$APP_DIR"
