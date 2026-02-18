@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
 import { join, resolve } from "path";
+import { homedir } from "os";
 import type { NormalizedMessage } from "@ai-assistant/core";
 import { getDb, runMigrations } from "@ai-assistant/db";
 import { SkillRegistry, loadSkills, createMcpServer } from "@ai-assistant/skill-runtime";
@@ -214,7 +215,18 @@ async function main() {
   app.use("*", cors());
 
   // Health check
-  app.get("/health", (c) => c.json({ status: "ok", version: VERSION, skills: registry.getAll().length }));
+  app.get("/health", async (c) => {
+    const claudeCredentials = join(homedir(), ".claude", ".credentials.json");
+    const claudeAuth = await Bun.file(claudeCredentials).exists();
+    const telegramToken = !!process.env.TELEGRAM_BOT_TOKEN;
+
+    return c.json({
+      status: "ok",
+      version: VERSION,
+      skills: registry.getAll().length,
+      checks: { claude: claudeAuth, telegram: telegramToken },
+    });
+  });
 
   // Routes
   app.route("/api/chat", createChatRoutes(db, MCP_CONFIG_PATH, taskQueue));
