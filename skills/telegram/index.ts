@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, GrammyError } from "grammy";
 import { z } from "zod";
 import { spawn } from "bun";
 import { join, resolve } from "path";
@@ -42,9 +42,14 @@ async function transcribeAudio(filePath: string): Promise<string> {
   return output.trim();
 }
 
+const HEARTBEAT_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const RESTART_DELAY = 5000; // 5 seconds
+
 function createSkill(): Skill {
   let bot: Bot | null = null;
   let messageHandler: ((msg: NormalizedMessage) => Promise<void>) | null = null;
+  let heartbeatTimer: Timer | null = null;
+  let restartTimer: Timer | null = null;
 
   return {
     meta: meta as SkillMeta,
@@ -151,18 +156,62 @@ function createSkill(): Skill {
         }
       });
 
-      // Start long polling
-      bot.start({
-        onStart: () => {
-          context.log.info("Telegram bot started");
-        },
+      // Global error handler — prevents unhandled errors from killing the polling loop
+      bot.catch((err) => {
+        context.log.error("Telegram bot error:", err.error ?? err);
       });
+
+      // Start long polling with auto-restart on fatal errors
+      const startPolling = () => {
+        if (!bot) return;
+        bot.start({
+          onStart: () => context.log.info("Telegram bot polling started"),
+        }).catch((err) => {
+          context.log.error("Telegram polling stopped unexpectedly:", err);
+          const isPermanent = err instanceof GrammyError &&
+            (err.error_code === 401 || err.error_code === 409);
+          if (isPermanent) {
+            context.log.error("Permanent Telegram API error — not restarting");
+            return;
+          }
+          if (bot) {
+            context.log.info(`Restarting Telegram polling in ${RESTART_DELAY / 1000}s...`);
+            restartTimer = setTimeout(startPolling, RESTART_DELAY);
+          }
+        });
+      };
+      startPolling();
+
+      // Heartbeat: periodically ping Telegram API to detect silent connection loss
+      heartbeatTimer = setInterval(async () => {
+        if (!bot) return;
+        try {
+          await bot.api.getMe();
+        } catch (err) {
+          context.log.error("Telegram heartbeat failed:", err);
+          context.log.info("Restarting Telegram bot due to heartbeat failure...");
+          try {
+            await bot.stop();
+          } catch {}
+          // bot.stop() resolves the bot.start() promise, which triggers the
+          // restart logic above via the .catch() handler
+        }
+      }, HEARTBEAT_INTERVAL);
     },
 
     async stop() {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      if (restartTimer) {
+        clearTimeout(restartTimer);
+        restartTimer = null;
+      }
       if (bot) {
-        await bot.stop();
-        bot = null;
+        const b = bot;
+        bot = null; // Signal to prevent auto-restart
+        await b.stop();
       }
     },
 
