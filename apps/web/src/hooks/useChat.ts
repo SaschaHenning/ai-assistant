@@ -1,5 +1,16 @@
 import { useState, useCallback, useRef } from "react";
 
+/** Generate a UUID, with fallback for non-secure contexts (plain HTTP). */
+function uuid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback: crypto.getRandomValues is available even over HTTP
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+    (+c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))).toString(16)
+  );
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -10,7 +21,7 @@ export interface Message {
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [channelId] = useState(() => `web-${crypto.randomUUID()}`);
+  const [channelId] = useState(() => `web-${uuid()}`);
   const abortRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
@@ -19,7 +30,7 @@ export function useChat() {
 
       // Add user message
       const userMsg: Message = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         role: "user",
         content: text,
         timestamp: new Date(),
@@ -28,7 +39,7 @@ export function useChat() {
       setIsLoading(true);
 
       // Prepare assistant message placeholder
-      const assistantId = crypto.randomUUID();
+      const assistantId = uuid();
       setMessages((prev) => [
         ...prev,
         { id: assistantId, role: "assistant", content: "", timestamp: new Date() },
