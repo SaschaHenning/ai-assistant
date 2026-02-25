@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { eq, schema, type AppDatabase } from "@ai-assistant/db";
 import { invokeClaude } from "./claude";
 import { parseExpression } from "cron-parser";
@@ -136,6 +137,8 @@ export class JobScheduler {
     const sender = this.messageSenders.get(platform);
     if (sender) {
       await sender(channelId, text);
+    } else {
+      console.warn(`[scheduler] No message sender for platform "${platform}" — result not delivered to channel ${channelId}`);
     }
   }
 
@@ -202,7 +205,24 @@ export class JobScheduler {
 
       await this.sendMessage(job.platform, job.channelId, result.text);
 
-      console.log(`[scheduler] Job "${job.name}" completed in ${Date.now() - startTime}ms`);
+      const durationMs = Math.round(Date.now() - startTime);
+
+      // Write request log so scheduled runs appear in the requests page
+      await this.db.insert(schema.requestLogs).values({
+        id: randomUUID(),
+        platform: job.platform,
+        channelId: job.channelId,
+        userId: null,
+        userMessage: `[Scheduled: ${job.name}] ${job.prompt}`,
+        assistantReply: result.text,
+        costUsd: result.costUsd ?? null,
+        model: result.model ?? null,
+        claudeSessionId: result.sessionId,
+        durationMs,
+        createdAt: new Date(),
+      });
+
+      console.log(`[scheduler] Job "${job.name}" completed in ${durationMs}ms`);
     } catch (err) {
       status = "error";
       errorMsg = err instanceof Error ? err.message : String(err);

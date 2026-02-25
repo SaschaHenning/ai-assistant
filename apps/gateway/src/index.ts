@@ -1,10 +1,11 @@
+import { randomUUID } from "crypto";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
 import { join, resolve } from "path";
 import { homedir } from "os";
 import type { NormalizedMessage } from "@ai-assistant/core";
-import { getDb, closeDb, runMigrations } from "@ai-assistant/db";
+import { eq, schema, getDb, closeDb, runMigrations } from "@ai-assistant/db";
 import { SkillRegistry, loadSkills, createMcpServer } from "@ai-assistant/skill-runtime";
 import { createSkillContext, registerMessageSender, messageSenders } from "./context";
 import { handleIncomingMessage } from "./handler";
@@ -176,6 +177,22 @@ async function main() {
         await sendTool.execute({ chatId: channelId, text }, context);
       }
     }
+  });
+
+  registerMessageSender("web", async (channelId, text) => {
+    // Store as assistant message so web UI shows it in chat history
+    const channel = await db.query.channels.findFirst({
+      where: eq(schema.channels.externalId, channelId),
+    });
+    if (!channel) return;
+    await db.insert(schema.messages).values({
+      id: randomUUID(),
+      channelId: channel.id,
+      role: "assistant",
+      content: text,
+      platform: "web",
+      createdAt: new Date(),
+    });
   });
 
   // Initialize job scheduler
