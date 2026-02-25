@@ -1,10 +1,10 @@
-import { sql, schema, type AppDatabase, getSqlite } from "@ai-assistant/db";
+import { getSqlite } from "@ai-assistant/db";
 
 /** Default retention period: 90 days */
 const RETENTION_DAYS = 90;
 
 /** Run data retention cleanup — deletes old messages, logs, and orphaned channels/sessions */
-export async function runRetentionCleanup(db: AppDatabase): Promise<{
+export async function runRetentionCleanup(db: unknown): Promise<{
   deletedMessages: number;
   deletedLogs: number;
   deletedChannels: number;
@@ -23,15 +23,7 @@ export async function runRetentionCleanup(db: AppDatabase): Promise<{
   // Delete old request logs
   const logResult = sqlite.run("DELETE FROM request_logs WHERE created_at < ?", [cutoffTimestamp]);
 
-  // Delete orphaned sessions (channels with no recent messages)
-  const sesResult = sqlite.run(`
-    DELETE FROM sessions WHERE channel_id NOT IN (
-      SELECT DISTINCT channel_id FROM messages
-      WHERE created_at >= ?
-    )
-  `, [cutoffTimestamp]);
-
-  // Delete orphaned channels (no messages and no sessions)
+  // Delete orphaned channels FIRST (before sessions, so the session check is meaningful)
   const chanResult = sqlite.run(`
     DELETE FROM channels WHERE id NOT IN (
       SELECT DISTINCT channel_id FROM messages
@@ -39,6 +31,14 @@ export async function runRetentionCleanup(db: AppDatabase): Promise<{
       SELECT DISTINCT channel_id FROM sessions
     )
   `);
+
+  // Delete orphaned sessions (channels with no recent messages)
+  const sesResult = sqlite.run(`
+    DELETE FROM sessions WHERE channel_id NOT IN (
+      SELECT DISTINCT channel_id FROM messages
+      WHERE created_at >= ?
+    )
+  `, [cutoffTimestamp]);
 
   return {
     deletedMessages: msgResult.changes,

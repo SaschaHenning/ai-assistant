@@ -156,8 +156,18 @@ export async function boostSalience(db: AppDatabase, memoryId: string) {
     .where(eq(schema.memories.id, memoryId));
 }
 
-/** Apply daily salience decay: -2% per day, delete memories below 0.1 */
+/** Track last decay run to prevent over-decaying on frequent restarts */
+let lastDecayDate: string | null = null;
+
+/** Apply daily salience decay: -2% per day, delete memories below 0.1.
+ *  Skips if already run today (prevents aggressive decay on restarts). */
 export async function decayMemories(db: AppDatabase) {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  if (lastDecayDate === today) {
+    console.log("[memory] Decay already applied today, skipping");
+    return;
+  }
+
   // Apply decay
   await db
     .update(schema.memories)
@@ -167,11 +177,12 @@ export async function decayMemories(db: AppDatabase) {
     });
 
   // Delete memories that fell below threshold
-  const deleted = await db
+  await db
     .delete(schema.memories)
     .where(sql`${schema.memories.salience} < 0.1`);
 
-  return deleted;
+  lastDecayDate = today;
+  console.log("[memory] Salience decay applied");
 }
 
 /** Extract and save semantic memories from a user message */

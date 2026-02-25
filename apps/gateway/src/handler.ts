@@ -10,7 +10,6 @@ import {
   formatMemoryContext,
   boostSalience,
   extractMemories,
-  saveEpisodicMemory,
 } from "./memory";
 
 const BASE_SYSTEM_PROMPT = `You are a helpful personal AI assistant. You have access to various tools (skills) that you can use to help the user. Be concise and helpful. When you use tools, explain what you're doing briefly.
