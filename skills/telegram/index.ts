@@ -18,6 +18,21 @@ import meta from "./meta.json";
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 const WHISPER_MODEL = join(PROJECT_ROOT, "data/models/ggml-small.bin");
 
+/** Timeout for ffmpeg/whisper subprocesses (60 seconds) */
+const SUBPROCESS_TIMEOUT = 60 * 1000;
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: Timer;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 async function transcribeAudio(filePath: string): Promise<string> {
   // Convert to 16kHz WAV (required by whisper-cpp)
   const wavPath = filePath + ".wav";
@@ -25,7 +40,12 @@ async function transcribeAudio(filePath: string): Promise<string> {
     stdout: "pipe",
     stderr: "pipe",
   });
-  await ffmpeg.exited;
+
+  const ffmpegExit = await withTimeout(ffmpeg.exited, SUBPROCESS_TIMEOUT, "ffmpeg");
+  if (ffmpegExit !== 0) {
+    await unlink(wavPath).catch(() => {});
+    throw new Error(`ffmpeg exited with code ${ffmpegExit}`);
+  }
 
   // Run whisper-cli
   const whisper = spawn(["whisper-cli", "--model", WHISPER_MODEL, "--no-prints", "--no-timestamps", "--language", "de", wavPath], {
@@ -33,11 +53,19 @@ async function transcribeAudio(filePath: string): Promise<string> {
     stderr: "pipe",
   });
 
-  const output = await new Response(whisper.stdout).text();
-  await whisper.exited;
+  const output = await withTimeout(
+    new Response(whisper.stdout).text(),
+    SUBPROCESS_TIMEOUT,
+    "whisper-cli"
+  );
+  const whisperExit = await withTimeout(whisper.exited, 5000, "whisper-cli exit");
 
   // Cleanup temp files
   await unlink(wavPath).catch(() => {});
+
+  if (whisperExit !== 0) {
+    throw new Error(`whisper-cli exited with code ${whisperExit}`);
+  }
 
   return output.trim();
 }

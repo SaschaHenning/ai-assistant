@@ -4,7 +4,7 @@ import { serveStatic } from "hono/bun";
 import { join, resolve } from "path";
 import { homedir } from "os";
 import type { NormalizedMessage } from "@ai-assistant/core";
-import { getDb, runMigrations } from "@ai-assistant/db";
+import { getDb, closeDb, runMigrations } from "@ai-assistant/db";
 import { SkillRegistry, loadSkills, createMcpServer } from "@ai-assistant/skill-runtime";
 import { createSkillContext, registerMessageSender, messageSenders } from "./context";
 import { handleIncomingMessage } from "./handler";
@@ -16,6 +16,8 @@ import { createJobRoutes } from "./routes/jobs";
 import { createTaskRoutes } from "./routes/tasks";
 import { JobScheduler } from "./scheduler";
 import { TaskQueue } from "./task-queue";
+import { initializeMemoryFTS, decayMemories } from "./memory";
+import { runRetentionCleanup } from "./retention";
 
 const GATEWAY_PORT = Number(process.env.GATEWAY_PORT) || 4300;
 const MCP_PORT = Number(process.env.MCP_PORT) || 4301;
@@ -45,6 +47,25 @@ async function main() {
   } catch (err) {
     console.warn("Migration warning:", err);
   }
+
+  // Initialize FTS5 virtual table for memory search
+  initializeMemoryFTS();
+
+  // Apply memory salience decay on startup and schedule daily
+  decayMemories(db).catch((err) => console.warn("[memory] Decay error:", err));
+  const memoryDecayTimer = setInterval(() => {
+    decayMemories(db).catch((err) => console.warn("[memory] Decay error:", err));
+  }, 24 * 60 * 60 * 1000); // Daily
+
+  // Run data retention cleanup on startup and weekly
+  runRetentionCleanup(db)
+    .then((r) => console.log(`[retention] Cleanup: ${r.deletedMessages} msgs, ${r.deletedLogs} logs, ${r.deletedChannels} channels, ${r.deletedSessions} sessions`))
+    .catch((err) => console.warn("[retention] Cleanup error:", err));
+  const retentionTimer = setInterval(() => {
+    runRetentionCleanup(db)
+      .then((r) => console.log(`[retention] Weekly cleanup: ${r.deletedMessages} msgs, ${r.deletedLogs} logs`))
+      .catch((err) => console.warn("[retention] Cleanup error:", err));
+  }, 7 * 24 * 60 * 60 * 1000); // Weekly
 
   // Load skills
   const registry = new SkillRegistry();
@@ -264,12 +285,15 @@ async function main() {
   // Graceful shutdown — handle both SIGINT (Ctrl+C) and SIGTERM (turbo/process manager)
   const shutdown = async () => {
     console.log("\nShutting down...");
+    clearInterval(memoryDecayTimer);
+    clearInterval(retentionTimer);
     taskQueue.destroy();
     await scheduler.stop();
     await registry.stopAll();
     await mcp.close();
     server.stop();
     mcpServer.stop();
+    closeDb();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);

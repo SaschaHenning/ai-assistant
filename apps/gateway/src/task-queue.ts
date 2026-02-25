@@ -24,6 +24,12 @@ export interface Task {
 
 type WorkFn = (signal: AbortSignal) => Promise<string>;
 
+/** Maximum queued tasks per channel before new messages are rejected */
+const MAX_QUEUE_DEPTH = 10;
+
+/** Orphaned queued tasks older than this are cleaned up */
+const ORPHAN_QUEUE_AGE_MS = 30 * 60 * 1000;
+
 export class TaskQueue extends EventEmitter {
   private queues = new Map<string, string[]>();
   private active = new Map<string, string>();
@@ -37,6 +43,27 @@ export class TaskQueue extends EventEmitter {
   }
 
   enqueue(channelId: string, work: WorkFn, metadata?: TaskMetadata): Task {
+    // Enforce per-channel queue depth limit
+    const currentDepth = this.queues.get(channelId)?.length ?? 0;
+    if (currentDepth >= MAX_QUEUE_DEPTH) {
+      const task: Task = {
+        id: randomUUID(),
+        channelId,
+        status: "failed",
+        error: "Too many queued messages — please wait for previous messages to complete",
+        createdAt: new Date(),
+        completedAt: new Date(),
+        abortController: new AbortController(),
+        messagePreview: metadata?.messagePreview,
+        platform: metadata?.platform,
+        userName: metadata?.userName,
+      };
+      this.tasks.set(task.id, task);
+      // Emit failure asynchronously so caller can set up listeners first
+      queueMicrotask(() => this.emit("task:failed", { task, channelId }));
+      return task;
+    }
+
     const task: Task = {
       id: randomUUID(),
       channelId,
@@ -122,16 +149,36 @@ export class TaskQueue extends EventEmitter {
   }
 
   cleanup() {
-    const cutoff = Date.now() - 60 * 60 * 1000;
+    const completedCutoff = Date.now() - 60 * 60 * 1000;
+    const orphanCutoff = Date.now() - ORPHAN_QUEUE_AGE_MS;
+
     for (const [id, task] of this.tasks) {
+      // Clean up old completed/failed/cancelled tasks
       if (
         task.completedAt &&
-        task.completedAt.getTime() < cutoff &&
+        task.completedAt.getTime() < completedCutoff &&
         task.status !== "running" &&
         task.status !== "queued"
       ) {
         this.tasks.delete(id);
         this.workFns.delete(id);
+        continue;
+      }
+
+      // Clean up orphaned queued tasks older than 30 minutes
+      if (task.status === "queued" && task.createdAt.getTime() < orphanCutoff) {
+        console.warn(`[task-queue] Cleaning up orphaned queued task ${id} (age: ${Math.round((Date.now() - task.createdAt.getTime()) / 60000)}min)`);
+        task.status = "cancelled";
+        task.completedAt = new Date();
+        task.error = "Orphaned task cleaned up";
+        this.workFns.delete(id);
+        // Remove from channel queue
+        const queue = this.queues.get(task.channelId);
+        if (queue) {
+          const idx = queue.indexOf(id);
+          if (idx !== -1) queue.splice(idx, 1);
+        }
+        this.emit("task:cancelled", { task, channelId: task.channelId });
       }
     }
   }

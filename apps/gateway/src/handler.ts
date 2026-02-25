@@ -3,6 +3,15 @@ import type { NormalizedMessage } from "@ai-assistant/core";
 import { eq, schema, type AppDatabase } from "@ai-assistant/db";
 import { invokeClaude, type ClaudeOptions } from "./claude";
 import { getKnowledgeBlock } from "./knowledge";
+import {
+  searchMemories,
+  getRecentMemories,
+  deduplicateMemories,
+  formatMemoryContext,
+  boostSalience,
+  extractMemories,
+  saveEpisodicMemory,
+} from "./memory";
 
 const BASE_SYSTEM_PROMPT = `You are a helpful personal AI assistant. You have access to various tools (skills) that you can use to help the user. Be concise and helpful. When you use tools, explain what you're doing briefly.
 
@@ -87,10 +96,31 @@ export async function handleIncomingMessage(
     where: eq(schema.sessions.channelId, channel.id),
   });
 
+  // --- Memory Context Injection (Layer 2+3) ---
+  // 1. FTS5 search for top 3 relevant memories
+  // 2. Recency fetch for 5 most recent
+  // 3. Deduplicate and format
+  let memoryBlock = "";
+  try {
+    const [relevant, recent] = await Promise.all([
+      searchMemories(db, message.text, 3),
+      getRecentMemories(db, 5),
+    ]);
+    const combined = deduplicateMemories([...relevant, ...recent]);
+
+    // Boost salience for all accessed memories
+    await Promise.all(combined.map((m) => boostSalience(db, m.id)));
+
+    memoryBlock = formatMemoryContext(combined);
+  } catch (err) {
+    console.warn("[memory] Context injection error:", err);
+  }
+
   // Invoke Claude CLI with latency tracking
+  const systemPrompt = await getSystemPrompt(message.platform, db);
   const claudeOptions: ClaudeOptions = {
     prompt: message.text,
-    systemPrompt: await getSystemPrompt(message.platform, db),
+    systemPrompt: systemPrompt + memoryBlock,
     sessionId: existingSession?.claudeSessionId || undefined,
     mcpConfigPath,
     onToken,
@@ -130,6 +160,14 @@ export async function handleIncomingMessage(
     platform: message.platform,
     createdAt: new Date(),
   });
+
+  // --- Post-response Memory Extraction ---
+  // Extract semantic memories from user's message (trigger-word based)
+  try {
+    await extractMemories(db, message.text, channel.id);
+  } catch (err) {
+    console.warn("[memory] Extraction error:", err);
+  }
 
   // Insert request log
   await db.insert(schema.requestLogs).values({

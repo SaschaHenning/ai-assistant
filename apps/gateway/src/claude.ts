@@ -22,6 +22,9 @@ const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
 /** Kill the Claude process unconditionally after 2 hours. */
 const HARD_TIMEOUT = 2 * 60 * 60 * 1000;
 
+/** Safety timeout for proc.exited after stdout closes (30 seconds). */
+const EXIT_WAIT_TIMEOUT = 30 * 1000;
+
 const ALLOWED_TOOLS = [
   "mcp__ai-assistant__*",
   "Bash(*)",
@@ -106,15 +109,22 @@ async function runClaude(options: ClaudeOptions): Promise<InternalResult> {
     env,
   });
 
-  // Collect stderr in parallel with stdout reading
+  // Collect stderr in parallel with stdout reading — tracked properly
   const stderrChunks: string[] = [];
-  (async () => {
-    const r = proc.stderr.getReader();
-    const d = new TextDecoder();
-    while (true) {
-      const { done, value } = await r.read();
-      if (done) break;
-      stderrChunks.push(d.decode(value, { stream: true }));
+  const stderrDecoder = new TextDecoder();
+  const stderrPromise = (async () => {
+    try {
+      const r = proc.stderr.getReader();
+      while (true) {
+        const { done, value } = await r.read();
+        if (done) break;
+        stderrChunks.push(stderrDecoder.decode(value, { stream: true }));
+      }
+      // Flush remaining multi-byte characters
+      const final = stderrDecoder.decode();
+      if (final) stderrChunks.push(final);
+    } catch {
+      // Process was killed — stderr stream closed, this is expected
     }
   })();
 
@@ -212,6 +222,10 @@ async function runClaude(options: ClaudeOptions): Promise<InternalResult> {
     }
   }
 
+  // Flush remaining multi-byte characters from stdout decoder
+  const finalChunk = decoder.decode();
+  if (finalChunk) buffer += finalChunk;
+
   // Process remaining buffer
   if (buffer.trim()) {
     try {
@@ -239,7 +253,21 @@ async function runClaude(options: ClaudeOptions): Promise<InternalResult> {
   clearTimeout(hardTimer);
   options.signal?.removeEventListener("abort", abortHandler);
 
-  const exitCode = await proc.exited;
+  // Wait for process to exit with a safety timeout — prevents hanging if
+  // the process closed stdout but is still running (zombie)
+  const exitCode = await Promise.race([
+    proc.exited,
+    new Promise<number>((resolve) =>
+      setTimeout(() => {
+        console.warn("[claude] Process did not exit within timeout — killing");
+        proc.kill();
+        resolve(-1);
+      }, EXIT_WAIT_TIMEOUT)
+    ),
+  ]);
+
+  // Wait for stderr reader to finish
+  await stderrPromise;
   const stderrText = stderrChunks.join("");
 
   if (options.signal?.aborted) {

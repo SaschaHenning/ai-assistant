@@ -32,6 +32,7 @@ export class JobScheduler {
   private sendTypingAction?: (platform: string, chatId: string) => Promise<void>;
   private running = false;
   private runningJobs = new Set<string>();
+  private jobAbortControllers = new Map<string, AbortController>();
 
   constructor(options: SchedulerOptions) {
     this.db = options.db;
@@ -60,6 +61,13 @@ export class JobScheduler {
       clearTimeout(timer);
     }
     this.timers.clear();
+    // Abort all currently running jobs
+    for (const [jobId, controller] of this.jobAbortControllers) {
+      console.log(`[scheduler] Aborting running job ${jobId}`);
+      controller.abort();
+    }
+    this.jobAbortControllers.clear();
+    this.runningJobs.clear();
     this.running = false;
     console.log("[scheduler] Stopped");
   }
@@ -137,6 +145,8 @@ export class JobScheduler {
       return;
     }
     this.runningJobs.add(job.id);
+    const abortController = new AbortController();
+    this.jobAbortControllers.set(job.id, abortController);
     console.log(`[scheduler] Executing job: ${job.name} (${job.id})`);
 
     const startTime = Date.now();
@@ -187,6 +197,7 @@ export class JobScheduler {
         prompt: job.prompt,
         systemPrompt: `You are executing a scheduled task named "${job.name}". This task runs automatically on a schedule. Be concise and focused on the task. Deliver actionable results.` + await getKnowledgeBlock(this.db),
         mcpConfigPath: this.mcpConfigPath,
+        signal: abortController.signal,
       });
 
       await this.sendMessage(job.platform, job.channelId, result.text);
@@ -225,6 +236,7 @@ export class JobScheduler {
       .where(eq(schema.scheduledJobs.id, job.id));
 
     this.runningJobs.delete(job.id);
+    this.jobAbortControllers.delete(job.id);
 
     // Reschedule for next run
     const refreshedJob = await this.db.query.scheduledJobs.findFirst({

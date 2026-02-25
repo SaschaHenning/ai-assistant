@@ -85,6 +85,8 @@ export function createChatRoutes(db: AppDatabase, mcpConfigPath: string, taskQue
 
       stream.onAbort(() => {
         cleanup();
+        taskQueue.cancelTask(task.id);
+        reject(new Error("Client disconnected"));
       });
 
       try {

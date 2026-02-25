@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
 
 export const channels = sqliteTable("channels", {
   id: text("id").primaryKey(),
@@ -87,6 +87,29 @@ export const knowledge = sqliteTable("knowledge", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+export const memories = sqliteTable("memories", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(), // semantic | episodic
+  content: text("content").notNull(),
+  tags: text("tags"), // comma-separated keywords for additional matching
+  salience: real("salience").notNull().default(1.0),
+  source: text("source").notNull(), // user_extraction | conversation_summary | explicit
+  channelId: text("channel_id"), // optional, for channel-specific memories
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  lastAccessedAt: integer("last_accessed_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+}, (table) => [
+  index("idx_memories_type").on(table.type),
+  index("idx_memories_salience").on(table.salience),
+  index("idx_memories_last_accessed").on(table.lastAccessedAt),
+]);
 
 export const scheduledJobs = sqliteTable("scheduled_jobs", {
   id: text("id").primaryKey(),
